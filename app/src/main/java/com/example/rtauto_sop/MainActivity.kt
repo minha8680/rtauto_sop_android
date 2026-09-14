@@ -4,9 +4,13 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -14,6 +18,7 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +28,7 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
 import com.google.android.material.slider.Slider
+import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.messaging.FirebaseMessaging
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -32,13 +38,23 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var tokenText: TextView
 
-    // 경보상세 · 이벤트목록 화면 전환용
+    // 경보상세 · 이벤트목록 · 설정 화면 전환용
     private lateinit var homeContent: View
     private lateinit var alertDetailContent: View
     private lateinit var eventListContent: View
+    private lateinit var settingsContent: View
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    private val soundPickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != RESULT_OK) return@registerForActivityResult
+            @Suppress("DEPRECATION")
+            val uri = result.data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            AppSettings.setAlarmSoundUri(this, uri)
+            updateSoundNameText()
+        }
 
     companion object {
         private const val KEY_SELECTED_NAV_ID = "selected_nav_id"
@@ -80,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         setupVolumeControl()
+        setupSettingsScreen()
         setupBottomNav()
         // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
         // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
@@ -180,6 +197,7 @@ class MainActivity : AppCompatActivity() {
         homeContent = findViewById(R.id.homeContent)
         alertDetailContent = findViewById(R.id.alertDetailContent)
         eventListContent = findViewById(R.id.eventListContent)
+        settingsContent = findViewById(R.id.settingsContent)
 
         findViewById<BottomNavigationView>(R.id.bottomNav).setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -197,6 +215,11 @@ class MainActivity : AppCompatActivity() {
                     refreshEventList()
                     true
                 }
+                R.id.nav_settings -> {
+                    showOnly(settingsContent)
+                    refreshSettings()
+                    true
+                }
                 else -> false
             }
         }
@@ -206,6 +229,7 @@ class MainActivity : AppCompatActivity() {
         homeContent.visibility = if (target === homeContent) View.VISIBLE else View.GONE
         alertDetailContent.visibility = if (target === alertDetailContent) View.VISIBLE else View.GONE
         eventListContent.visibility = if (target === eventListContent) View.VISIBLE else View.GONE
+        settingsContent.visibility = if (target === settingsContent) View.VISIBLE else View.GONE
     }
 
     // ---------------------------------------------------------------------
@@ -400,6 +424,80 @@ class MainActivity : AppCompatActivity() {
                 audioManager.setStreamVolume(AudioManager.STREAM_ALARM, level, 0)
             }
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // ④ 설정 — 경보음 선택 · TTS/진동 켜고 끄기 · 이력 삭제 · 앱 정보
+    // ---------------------------------------------------------------------
+
+    private fun setupSettingsScreen() {
+        findViewById<View>(R.id.soundPickerRow).setOnClickListener {
+            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "경보음 선택")
+                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, AppSettings.getAlarmSoundUri(this@MainActivity))
+            }
+            soundPickerLauncher.launch(intent)
+        }
+
+        findViewById<SwitchMaterial>(R.id.ttsSwitch).apply {
+            isChecked = AppSettings.isTtsEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, isChecked ->
+                AppSettings.setTtsEnabled(this@MainActivity, isChecked)
+            }
+        }
+
+        findViewById<SwitchMaterial>(R.id.vibrationSwitch).apply {
+            isChecked = AppSettings.isVibrationEnabled(this@MainActivity)
+            setOnCheckedChangeListener { _, isChecked ->
+                AppSettings.setVibrationEnabled(this@MainActivity, isChecked)
+            }
+        }
+
+        findViewById<android.widget.Button>(R.id.clearHistoryButton).setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("오늘 이벤트 전체 삭제")
+                .setMessage("기록된 경보 이력을 모두 지웁니다. 이 동작은 되돌릴 수 없습니다.")
+                .setPositiveButton("삭제") { _, _ ->
+                    EventStore.clearAll(this)
+                    Toast.makeText(this, "이벤트 이력을 삭제했습니다", Toast.LENGTH_SHORT).show()
+                    refreshEventList()
+                    refreshAlertDetail()
+                }
+                .setNegativeButton("취소", null)
+                .show()
+        }
+
+        findViewById<android.widget.Button>(R.id.openNotificationSettingsButton).setOnClickListener {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:$packageName"))
+            }
+            startActivity(intent)
+        }
+
+        findViewById<TextView>(R.id.appVersionText).text =
+            "RT SOP 알림 v${BuildConfig.VERSION_NAME}"
+
+        updateSoundNameText()
+    }
+
+    private fun refreshSettings() {
+        updateSoundNameText()
+    }
+
+    private fun updateSoundNameText() {
+        val uri = AppSettings.getAlarmSoundUri(this) ?: run {
+            findViewById<TextView>(R.id.soundNameText).text = "시스템 기본 알람음"
+            return
+        }
+        val name = runCatching { RingtoneManager.getRingtone(this, uri)?.getTitle(this) }.getOrNull()
+        findViewById<TextView>(R.id.soundNameText).text = name ?: "선택한 알림음"
     }
 
     private fun loadToken() {

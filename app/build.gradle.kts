@@ -30,6 +30,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
+    buildFeatures {
+        // 설정 화면에서 BuildConfig.VERSION_NAME으로 앱 버전을 표시하기 위해 켠다.
+        buildConfig = true
+    }
 }
 
 kotlin {

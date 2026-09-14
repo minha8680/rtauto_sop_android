@@ -41,6 +41,11 @@ object EventStore {
         return readAll(context).firstOrNull { !it.acknowledged }
     }
 
+    /** 설정 화면의 "오늘 이벤트 전체 삭제"에서 호출한다. */
+    fun clearAll(context: Context) {
+        writeAll(context, emptyList())
+    }
+
     /** 오늘(자정 이후) 발생한 이벤트만, 최신순. */
     fun todayEvents(context: Context): List<AlertEvent> {
         val todayStart = Calendar.getInstance().apply {

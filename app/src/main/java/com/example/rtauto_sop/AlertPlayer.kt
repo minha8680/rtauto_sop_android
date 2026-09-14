@@ -7,7 +7,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Bundle
 import android.os.CombinedVibration
@@ -59,9 +58,13 @@ object AlertPlayer {
     fun trigger(context: Context, title: String, body: String) {
         ensureChannel(context)
         showNotification(context, title, body)
-        vibrate(context)
+        if (AppSettings.isVibrationEnabled(context)) {
+            vibrate(context)
+        }
         playAlarmSound(context) {
-            speak(context, body)
+            if (AppSettings.isTtsEnabled(context)) {
+                speak(context, body)
+            }
         }
     }
 
@@ -104,8 +107,8 @@ object AlertPlayer {
     }
 
     private fun playAlarmSound(context: Context, onFinished: () -> Unit) {
-        val alarmUri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        // 설정 탭에서 사용자가 고른 경보음이 있으면 그걸 쓰고, 없으면 기기 기본 알람음을 쓴다.
+        val alarmUri = AppSettings.resolveAlarmSoundUri(context)
 
         // 소프트웨어 배율은 항상 100%로 두고(1f), 실제 크기는 기기의 "알람" 스트림 볼륨이 결정한다.
         // MainActivity의 슬라이더가 AudioManager.STREAM_ALARM을 직접 조절하므로,
