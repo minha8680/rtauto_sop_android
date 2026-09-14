@@ -40,6 +40,10 @@ class MainActivity : AppCompatActivity() {
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    companion object {
+        private const val KEY_SELECTED_NAV_ID = "selected_nav_id"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // 저장된 다크모드 값을 화면이 그려지기 전에 먼저 적용한다.
         AppCompatDelegate.setDefaultNightMode(
@@ -84,7 +88,17 @@ class MainActivity : AppCompatActivity() {
             runIntroAnimation()
         } else {
             findViewById<View>(R.id.introOverlay).visibility = View.GONE
+            // 다크모드 전환 등으로 recreate될 때 보고 있던 탭 그대로 복원한다.
+            // (홈/경보상세/이벤트목록 컨테이너의 visibility는 기본 View 상태 저장에
+            // 포함되지 않아, 복원해주지 않으면 매번 홈 화면으로 되돌아간다.)
+            val savedNavId = savedInstanceState.getInt(KEY_SELECTED_NAV_ID, R.id.nav_home)
+            findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = savedNavId
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(KEY_SELECTED_NAV_ID, findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId)
     }
 
     // ---------------------------------------------------------------------
