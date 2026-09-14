@@ -1,0 +1,8 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_toggle_theme"
+        android:title="다크모드 전환"
+        android:icon="@drawable/ic_theme_light"
+        app:showAsAction="always" />
+</menu>

@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.core.ktx)
+    implementation(libs.core.splashscreen)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
     testImplementation(libs.junit)

@@ -8,13 +8,18 @@ import android.graphics.Color
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.messaging.FirebaseMessaging
 import java.text.SimpleDateFormat
@@ -34,6 +39,12 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 저장된 다크모드 값을 화면이 그려지기 전에 먼저 적용한다.
+        AppCompatDelegate.setDefaultNightMode(
+            if (ThemePrefs.isDarkMode(this)) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+        // installSplashScreen()은 반드시 super.onCreate() 이전에 호출해야 한다.
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -64,6 +75,78 @@ class MainActivity : AppCompatActivity() {
 
         setupVolumeControl()
         setupBottomNav()
+        // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
+        // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
+        // 다시 뜨는 걸 막는다. 진짜 첫 실행에서만 보이면 된다.
+        if (savedInstanceState == null) {
+            runIntroAnimation()
+        } else {
+            findViewById<View>(R.id.introOverlay).visibility = View.GONE
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // 다크모드 토글 — 액션바 우측 상단 아이콘 (기기 설정과 무관하게 앱 안에서 직접 켜고 끈다)
+    // ---------------------------------------------------------------------
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        updateThemeMenuIcon(menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_toggle_theme) {
+            val nowDark = !ThemePrefs.isDarkMode(this)
+            ThemePrefs.setDarkMode(this, nowDark)
+            AppCompatDelegate.setDefaultNightMode(
+                if (nowDark) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+            )
+            return true
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun updateThemeMenuIcon(menu: Menu) {
+        val item = menu.findItem(R.id.action_toggle_theme) ?: return
+        item.setIcon(if (ThemePrefs.isDarkMode(this)) R.drawable.ic_theme_dark else R.drawable.ic_theme_light)
+    }
+
+    // ---------------------------------------------------------------------
+    // 인트로 스플래시 — 로고 · 문구가 서서히 나타났다 사라진다
+    // ---------------------------------------------------------------------
+
+    private fun runIntroAnimation() {
+        val overlay = findViewById<View>(R.id.introOverlay)
+        val logo = findViewById<View>(R.id.introLogo)
+        val divider = findViewById<View>(R.id.introDivider)
+        val title = findViewById<View>(R.id.introTitle)
+        val subtitle = findViewById<View>(R.id.introSubtitle)
+
+        fun fadeIn(view: View, delay: Long) {
+            view.translationY = 16f
+            view.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setStartDelay(delay)
+                .setDuration(650)
+                .setInterpolator(DecelerateInterpolator())
+                .start()
+        }
+
+        fadeIn(logo, 150)
+        fadeIn(divider, 500)
+        fadeIn(title, 600)
+        fadeIn(subtitle, 720)
+
+        overlay.postDelayed({
+            overlay.animate()
+                .alpha(0f)
+                .setDuration(400)
+                .setInterpolator(DecelerateInterpolator())
+                .withEndAction { overlay.visibility = View.GONE }
+                .start()
+        }, 1900)
     }
 
     override fun onResume() {
@@ -183,7 +266,7 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(12) }
-            setBackgroundColor(Color.parseColor("#F5F5F5"))
+            setBackgroundColor(getColorRes(R.color.card_bg_alt))
         }
 
         val header = TextView(this).apply {
@@ -195,14 +278,14 @@ class MainActivity : AppCompatActivity() {
         val detail = TextView(this).apply {
             text = "${formatTime(event.id)} · ${event.body}"
             textSize = 13f
-            setTextColor(Color.parseColor("#666666"))
-            setPadding(0, 4, 0, 0)
+            setTextColor(getColorRes(R.color.text_secondary))
+            setPadding(0, dp(4), 0, 0)
         }
         val status = TextView(this).apply {
             text = if (event.acknowledged) "확인 완료" else "미확인"
             textSize = 12f
             setTextColor(if (event.acknowledged) Color.parseColor("#4CAF50") else Color.parseColor("#D32F2F"))
-            setPadding(0, 6, 0, 0)
+            setPadding(0, dp(6), 0, 0)
         }
 
         row.addView(header)
