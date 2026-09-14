@@ -17,8 +17,8 @@
         android:fillColor="#D22234"
         android:pathData="M27.01,51.70 L36.06,51.83 L38.91,45.12 L42.39,51.51 L50.42,51.83 L47.70,45.69 L53.84,42.91 L56.06,40.12 L57.32,36.07 L62.45,36.52 L56.88,51.70 L64.73,51.58 L67.13,49.05 L71.75,36.26 L79.03,35.32 L81.18,32.85 L82.00,30.00 L36.50,30.25 L31.44,34.24 L26.00,35.95 L47.58,36.07 L48.34,37.47 L45.30,39.74 L26.19,39.87 L29.86,42.72 Z" />
 
-    <!-- 알림 벨 (로고 아래, 작게) -->
-    <group android:translateX="45.5" android:translateY="49.03">
+    <!-- 알림 벨 (로고 정중앙 아래, 작게) -->
+    <group android:translateX="37.0" android:translateY="49.03">
         <path
             android:fillColor="#D22234"
             android:pathData="M15.98,6.80 L18.02,6.80 L18.02,10.03 L15.98,10.03 Z" />
@@ -31,5 +31,13 @@
         <path
             android:fillColor="#D22234"
             android:pathData="M15.47,27.24 a1.53,1.53 0 1,0 3.06,0 a1.53,1.53 0 1,0 -3.06,0 Z" />
+
+        <!-- 종 안의 흰색 느낌표 -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M16.2,13.6 L17.8,13.6 L17.8,19.6 L16.2,19.6 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M16.0,21.5 a1.0,1.0 0 1,0 2.0,0 a1.0,1.0 0 1,0 -2.0,0 Z" />
     </group>
 </vector>

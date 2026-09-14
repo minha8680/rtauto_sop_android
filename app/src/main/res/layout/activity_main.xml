@@ -18,155 +18,285 @@
             <ScrollView
                 android:id="@+id/homeContent"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingBottom="8dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="24dp"
-                    android:gravity="center_horizontal">
+                    android:padding="20dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <!-- 기기 등록 카드 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="@color/surface"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/outline"
+                        app:strokeWidth="1dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="20dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:drawableStart="@drawable/ic_key"
+                                android:drawablePadding="8dp"
+                                android:drawableTint="@color/brand_red"
+                                android:gravity="center_vertical"
+                                android:text="기기 등록"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="이 기기의 FCM 토큰을 엣지 PC 설정에 등록하세요"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp" />
+
+                            <com.google.android.material.card.MaterialCardView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="14dp"
+                                app:cardBackgroundColor="@color/card_bg"
+                                app:cardCornerRadius="10dp"
+                                app:cardElevation="0dp">
+
+                                <TextView
+                                    android:id="@+id/tokenText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:padding="14dp"
+                                    android:text="토큰을 가져오는 중..."
+                                    android:textIsSelectable="true"
+                                    android:fontFamily="monospace"
+                                    android:textSize="12sp" />
+                            </com.google.android.material.card.MaterialCardView>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/copyButton"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="12dp"
+                                android:layout_gravity="end"
+                                android:text="토큰 복사"
+                                android:textColor="@color/brand_red"
+                                app:cornerRadius="10dp"
+                                app:icon="@drawable/ic_copy"
+                                app:iconTint="@color/brand_red"
+                                app:strokeColor="@color/brand_red" />
+
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
+
+                    <!-- 경보 테스트 카드 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:text="@string/app_name"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        app:cardBackgroundColor="@color/surface"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/outline"
+                        app:strokeWidth="1dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="24dp"
-                        android:text="이 기기의 FCM 토큰 (엣지 PC 설정에 등록)"
-                        android:textSize="14sp" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="20dp">
 
-                    <TextView
-                        android:id="@+id/tokenText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="토큰을 가져오는 중..."
-                        android:textIsSelectable="true"
-                        android:background="@color/card_bg"
-                        android:padding="12dp" />
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:drawableStart="@drawable/ic_notification"
+                                android:drawablePadding="8dp"
+                                android:drawableTint="@color/brand_red"
+                                android:gravity="center_vertical"
+                                android:text="경보 테스트"
+                                android:textSize="16sp"
+                                android:textStyle="bold" />
 
-                    <Button
-                        android:id="@+id/copyButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="토큰 복사" />
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/testAlertButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="52dp"
+                                android:layout_marginTop="14dp"
+                                android:backgroundTint="@color/brand_red"
+                                android:text="테스트 경보 재생"
+                                android:textAllCaps="false"
+                                app:cornerRadius="12dp"
+                                app:icon="@drawable/ic_notification"
+                                app:iconTint="@color/white" />
 
-                    <Button
-                        android:id="@+id/testAlertButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="24dp"
-                        android:text="테스트 경보 재생 (소리 · 진동 · TTS)" />
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginTop="20dp"
+                                android:background="@color/outline" />
 
-                    <TextView
-                        android:id="@+id/volumeLabel"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="32dp"
-                        android:text="경보음 크기: 60%"
-                        android:textSize="14sp" />
+                            <TextView
+                                android:id="@+id/volumeLabel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:text="경보음 크기: 60%"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
 
-                    <SeekBar
-                        android:id="@+id/volumeSeekBar"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:max="100" />
+                            <com.google.android.material.slider.Slider
+                                android:id="@+id/volumeSlider"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="0dp"
+                                android:stepSize="1"
+                                android:valueFrom="0"
+                                android:valueTo="10" />
+
+                        </LinearLayout>
+                    </com.google.android.material.card.MaterialCardView>
 
                 </LinearLayout>
             </ScrollView>
 
             <!-- ② 경보 상세 화면 (기획안 5.5절 그림4-②) -->
-            <LinearLayout
+            <ScrollView
                 android:id="@+id/alertDetailContent"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:orientation="vertical"
                 android:visibility="gone">
-
-                <TextView
-                    android:id="@+id/alertLevelBar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="중대 편차 발생"
-                    android:textColor="@color/white"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:background="@color/level_critical" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="24dp">
+                    android:orientation="vertical">
 
                     <TextView
-                        android:id="@+id/alertTime"
-                        android:layout_width="wrap_content"
+                        android:id="@+id/alertLevelBar"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="2026.09.08. 화요일 09:10:18"
-                        android:textSize="13sp"
-                        android:textColor="@color/text_secondary" />
-
-                    <TextView
-                        android:id="@+id/alertTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="2인 1조 위반"
-                        android:textSize="24sp"
+                        android:background="@color/level_critical"
+                        android:drawableStart="@drawable/ic_nav_alert"
+                        android:drawablePadding="10dp"
+                        android:drawableTint="@color/white"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="20dp"
+                        android:paddingVertical="18dp"
+                        android:text="중대 편차 발생"
+                        android:textColor="@color/white"
+                        android:textSize="18sp"
                         android:textStyle="bold" />
 
-                    <TextView
-                        android:id="@+id/alertBody"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:text="세정기 구역, 2인 1조 위반, 09시 10분 발생"
-                        android:textSize="15sp" />
+                        android:orientation="vertical"
+                        android:padding="20dp">
 
-                    <TextView
-                        android:id="@+id/alertEmptyText"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="32dp"
-                        android:text="현재 활성 경보가 없습니다."
-                        android:textSize="15sp"
-                        android:textColor="@color/text_muted"
-                        android:visibility="gone" />
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            app:cardBackgroundColor="@color/surface"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="@color/outline"
+                            app:strokeWidth="1dp">
 
-                    <Button
-                        android:id="@+id/acknowledgeButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="40dp"
-                        android:paddingTop="16dp"
-                        android:paddingBottom="16dp"
-                        android:text="확인 (경보 종료)"
-                        android:textSize="18sp"
-                        android:textColor="@color/white"
-                        android:backgroundTint="@color/level_critical" />
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="20dp">
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:text="확인을 누르면 경고음 · 진동이 즉시 멈춥니다."
-                        android:textSize="12sp"
-                        android:textColor="@color/text_muted"
-                        android:gravity="center" />
+                                <TextView
+                                    android:id="@+id/alertTime"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="2026.09.08. 화요일 09:10:18"
+                                    android:textSize="13sp"
+                                    android:textColor="@color/text_secondary" />
 
+                                <TextView
+                                    android:id="@+id/alertTitle"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:text="2인 1조 위반"
+                                    android:textSize="22sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/alertBody"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="8dp"
+                                    android:text="세정기 구역, 2인 1조 위반, 09시 10분 발생"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="15sp" />
+
+                                <LinearLayout
+                                    android:id="@+id/alertEmptyText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="12dp"
+                                    android:layout_marginBottom="12dp"
+                                    android:gravity="center"
+                                    android:orientation="vertical"
+                                    android:visibility="gone">
+
+                                    <ImageView
+                                        android:layout_width="40dp"
+                                        android:layout_height="40dp"
+                                        android:src="@drawable/ic_check_circle"
+                                        android:contentDescription="@null"
+                                        app:tint="@color/text_muted" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="10dp"
+                                        android:text="현재 활성 경보가 없습니다."
+                                        android:textSize="14sp"
+                                        android:textColor="@color/text_muted" />
+                                </LinearLayout>
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/acknowledgeButton"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="54dp"
+                                    android:layout_marginTop="24dp"
+                                    android:backgroundTint="@color/level_critical"
+                                    android:text="확인 (경보 종료)"
+                                    android:textAllCaps="false"
+                                    android:textSize="16sp"
+                                    app:cornerRadius="12dp"
+                                    app:icon="@drawable/ic_check_circle"
+                                    app:iconTint="@color/white" />
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="12dp"
+                                    android:gravity="center"
+                                    android:text="확인을 누르면 경고음 · 진동이 즉시 멈춥니다."
+                                    android:textColor="@color/text_muted"
+                                    android:textSize="12sp" />
+
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
                 </LinearLayout>
-            </LinearLayout>
+            </ScrollView>
 
             <!-- ③ 오늘 이벤트 목록 (기획안 5.5절 그림4-③) -->
             <ScrollView
@@ -179,25 +309,59 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="24dp">
+                    android:padding="20dp">
 
-                    <TextView
-                        android:id="@+id/eventListTitle"
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="오늘 편차 0건"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:drawableStart="@drawable/ic_nav_list"
+                            android:drawablePadding="8dp"
+                            android:drawableTint="@color/brand_red"
+                            android:gravity="center_vertical"
+                            android:text="오늘 이벤트"
+                            android:textSize="18sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/eventListTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0건"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
                         android:id="@+id/eventListEmptyText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="24dp"
-                        android:text="오늘 발생한 이벤트가 없습니다."
-                        android:textSize="15sp"
-                        android:textColor="@color/text_muted"
-                        android:visibility="gone" />
+                        android:layout_marginTop="48dp"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <ImageView
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:src="@drawable/ic_check_circle"
+                            android:contentDescription="@null"
+                            app:tint="@color/text_muted" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="10dp"
+                            android:text="오늘 발생한 이벤트가 없습니다."
+                            android:textSize="14sp"
+                            android:textColor="@color/text_muted" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/eventListContainer"

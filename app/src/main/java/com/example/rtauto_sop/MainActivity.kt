@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.graphics.Color
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
@@ -13,14 +12,17 @@ import android.view.MenuItem
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.chip.Chip
+import com.google.android.material.slider.Slider
 import com.google.firebase.messaging.FirebaseMessaging
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -201,7 +203,7 @@ class MainActivity : AppCompatActivity() {
         val timeText = findViewById<TextView>(R.id.alertTime)
         val titleText = findViewById<TextView>(R.id.alertTitle)
         val bodyText = findViewById<TextView>(R.id.alertBody)
-        val emptyText = findViewById<TextView>(R.id.alertEmptyText)
+        val emptyText = findViewById<View>(R.id.alertEmptyText)
         val ackButton = findViewById<android.widget.Button>(R.id.acknowledgeButton)
 
         val event = EventStore.latestUnacknowledged(this)
@@ -244,11 +246,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun refreshEventList() {
         val titleView = findViewById<TextView>(R.id.eventListTitle)
-        val emptyText = findViewById<TextView>(R.id.eventListEmptyText)
+        val emptyText = findViewById<View>(R.id.eventListEmptyText)
         val container = findViewById<LinearLayout>(R.id.eventListContainer)
 
         val events = EventStore.todayEvents(this)
-        titleView.text = "오늘 편차 ${events.size}건"
+        titleView.text = "${events.size}건"
         emptyText.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
 
         container.removeAllViews()
@@ -259,39 +261,82 @@ class MainActivity : AppCompatActivity() {
         val density = resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
 
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+        val card = MaterialCardView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = dp(12) }
-            setBackgroundColor(getColorRes(R.color.card_bg_alt))
+            radius = dp(14).toFloat()
+            cardElevation = 0f
+            strokeWidth = dp(1)
+            strokeColor = getColorRes(R.color.outline)
+            setCardBackgroundColor(getColorRes(R.color.surface))
+        }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+        }
+
+        val textBlock = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
         val header = TextView(this).apply {
-            text = "${event.level} · ${event.title}"
+            text = event.title
             textSize = 15f
-            setTextColor(getColorRes(levelColorRes(event.level)))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
         val detail = TextView(this).apply {
             text = "${formatTime(event.id)} · ${event.body}"
-            textSize = 13f
-            setTextColor(getColorRes(R.color.text_secondary))
-            setPadding(0, dp(4), 0, 0)
-        }
-        val status = TextView(this).apply {
-            text = if (event.acknowledged) "확인 완료" else "미확인"
             textSize = 12f
-            setTextColor(if (event.acknowledged) Color.parseColor("#4CAF50") else Color.parseColor("#D32F2F"))
-            setPadding(0, dp(6), 0, 0)
+            setTextColor(getColorRes(R.color.text_secondary))
+            setPadding(0, dp(3), 0, 0)
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        val levelChip = Chip(this).apply {
+            text = event.level
+            textSize = 11f
+            setTextColor(getColorRes(R.color.white))
+            chipBackgroundColor = android.content.res.ColorStateList.valueOf(getColorRes(levelColorRes(event.level)))
+            chipMinHeight = dp(22).toFloat()
+            chipStartPadding = dp(8).toFloat()
+            chipEndPadding = dp(8).toFloat()
+            isClickable = false
+            isFocusable = false
+            isCheckable = false
+            setEnsureMinTouchTargetSize(false)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
         }
 
-        row.addView(header)
-        row.addView(detail)
-        row.addView(status)
-        return row
+        textBlock.addView(header)
+        textBlock.addView(detail)
+        textBlock.addView(levelChip)
+
+        val statusChip = Chip(this).apply {
+            text = if (event.acknowledged) "확인 완료" else "미확인"
+            textSize = 11f
+            val statusColor = if (event.acknowledged) R.color.status_ok else R.color.status_pending
+            setTextColor(getColorRes(statusColor))
+            chipBackgroundColor = android.content.res.ColorStateList.valueOf(getColorRes(statusColor)).withAlpha(30)
+            chipStrokeWidth = dp(1).toFloat()
+            chipStrokeColor = android.content.res.ColorStateList.valueOf(getColorRes(statusColor))
+            chipMinHeight = dp(24).toFloat()
+            isClickable = false
+            isFocusable = false
+            isCheckable = false
+            setEnsureMinTouchTargetSize(false)
+        }
+
+        row.addView(textBlock)
+        row.addView(statusChip)
+        card.addView(row)
+        return card
     }
 
     private fun levelColorRes(level: String): Int = when (level) {
@@ -300,7 +345,7 @@ class MainActivity : AppCompatActivity() {
         else -> R.color.level_normal
     }
 
-    private fun getColorRes(resId: Int): Int = androidx.core.content.ContextCompat.getColor(this, resId)
+    private fun getColorRes(resId: Int): Int = ContextCompat.getColor(this, resId)
 
     private fun formatTime(timestampMillis: Long): String {
         val formatter = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.KOREA)
@@ -318,11 +363,11 @@ class MainActivity : AppCompatActivity() {
      */
     private fun setupVolumeControl() {
         val volumeLabel = findViewById<TextView>(R.id.volumeLabel)
-        val volumeSeekBar = findViewById<SeekBar>(R.id.volumeSeekBar)
+        val volumeSlider = findViewById<Slider>(R.id.volumeSlider)
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-        volumeSeekBar.max = maxVolume
+        volumeSlider.valueTo = maxVolume.toFloat()
 
         fun updateLabel(level: Int) {
             val percent = if (maxVolume > 0) level * 100 / maxVolume else 0
@@ -330,21 +375,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
-        volumeSeekBar.progress = currentVolume
+        volumeSlider.value = currentVolume.toFloat().coerceIn(0f, maxVolume.toFloat())
         updateLabel(currentVolume)
 
-        volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                updateLabel(progress)
-                if (fromUser) {
-                    // FLAG_SHOW_UI 없이 즉시 반영 — 우리 슬라이더가 이미 크기를 보여주고 있다.
-                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, progress, 0)
-                }
+        volumeSlider.addOnChangeListener { _, value, fromUser ->
+            val level = value.toInt()
+            updateLabel(level)
+            if (fromUser) {
+                // FLAG_SHOW_UI 없이 즉시 반영 — 우리 슬라이더가 이미 크기를 보여주고 있다.
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, level, 0)
             }
-
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
+        }
     }
 
     private fun loadToken() {

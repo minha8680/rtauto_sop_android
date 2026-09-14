@@ -18,4 +18,10 @@
     <color name="card_bg_alt">#F5F5F5</color>
     <color name="text_secondary">#666666</color>
     <color name="text_muted">#999999</color>
+
+    <!-- 카드형 UI용 -->
+    <color name="surface">#FFFFFF</color>
+    <color name="outline">#E2E2E2</color>
+    <color name="status_ok">#2E7D32</color>
+    <color name="status_pending">#D32F2F</color>
 </resources>
