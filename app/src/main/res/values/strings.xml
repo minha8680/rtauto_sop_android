@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">rtauto_sop</string>
+    <string name="alert_channel_id">sop_alert_channel</string>
+    <string name="alert_channel_name">SOP 편차 경보</string>
+</resources>

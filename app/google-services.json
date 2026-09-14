@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "819471967737",
+    "project_id": "rtauto-sop",
+    "storage_bucket": "rtauto-sop.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:819471967737:android:9f7c1b195b6f028e340928",
+        "android_client_info": {
+          "package_name": "com.example.rtauto_sop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAmFFtoQMU5bT5HWTHlDaq-JWxQtuEFB3M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
