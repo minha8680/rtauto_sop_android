@@ -107,6 +107,16 @@ object AlertPlayer {
     }
 
     private fun playAlarmSound(context: Context, onFinished: () -> Unit) {
+        // 경보가 연달아 울릴 때 이전 소리 위에 새 소리가 겹쳐 쌓이지 않도록,
+        // 새로 재생하기 전에 지금 재생 중인 것부터 확실히 멈추고 정리한다.
+        // (이걸 안 하면 currentPlayer가 새 인스턴스로 덮어써지면서 이전 MediaPlayer는
+        // 참조를 잃은 채 계속 재생되고, "확인"을 눌러도 최근 것만 멈추고
+        // 예전 것들은 못 끄는 상태가 된다.)
+        stopCurrentSound()
+        // 이전 경보의 TTS가 아직 말하는 중이었다면 그것도 같이 끊는다 —
+        // 새 경고음과 옛 음성 안내가 동시에 겹쳐 들리지 않게.
+        ttsRef?.stop()
+
         // 설정 탭에서 사용자가 고른 경보음이 있으면 그걸 쓰고, 없으면 기기 기본 알람음을 쓴다.
         val alarmUri = AppSettings.resolveAlarmSoundUri(context)
 
@@ -161,11 +171,7 @@ object AlertPlayer {
      * 재생 중인 경고음 · TTS를 즉시 멈추고, 진동을 취소하고, 떠 있는 알림을 지운다.
      */
     fun stop(context: Context) {
-        currentPlayer?.let { player ->
-            runCatching { if (player.isPlaying) player.stop() }
-            player.release()
-        }
-        currentPlayer = null
+        stopCurrentSound()
 
         ttsRef?.stop()
 
@@ -173,6 +179,15 @@ object AlertPlayer {
 
         currentNotificationId?.let { NotificationManagerCompat.from(context).cancel(it) }
         currentNotificationId = null
+    }
+
+    /** 지금 재생 중인 경고음(MediaPlayer)이 있으면 멈추고 리소스를 해제한다. */
+    private fun stopCurrentSound() {
+        currentPlayer?.let { player ->
+            runCatching { if (player.isPlaying) player.stop() }
+            player.release()
+        }
+        currentPlayer = null
     }
 
     private fun cancelVibration(context: Context) {
