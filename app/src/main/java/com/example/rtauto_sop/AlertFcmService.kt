@@ -14,6 +14,7 @@ import com.google.firebase.messaging.RemoteMessage
  * 기대하는 data 필드:
  *   title -> 예: "2인 1조 위반"
  *   body  -> 예: "세정기 구역, 2인 1조 위반, 09시 10분 발생"
+ *   level -> "중대" · "일반" · "주의" (생략 시 "중대")
  */
 class AlertFcmService : FirebaseMessagingService() {
 
@@ -22,8 +23,10 @@ class AlertFcmService : FirebaseMessagingService() {
 
         val title = message.data["title"] ?: "SOP 편차 발생"
         val body = message.data["body"] ?: "현장 상태를 확인하세요."
+        val level = message.data["level"] ?: "중대"
 
-        Log.i(TAG, "alert received: title=$title body=$body")
+        Log.i(TAG, "alert received: level=$level title=$title body=$body")
+        EventStore.addEvent(applicationContext, level, title, body)
         AlertPlayer.trigger(applicationContext, title, body)
     }
 

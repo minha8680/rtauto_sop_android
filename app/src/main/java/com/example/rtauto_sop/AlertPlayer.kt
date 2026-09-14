@@ -29,6 +29,10 @@ object AlertPlayer {
     private const val CHANNEL_ID_RES_NAME = "alert_channel_id"
     private var ttsRef: TextToSpeech? = null
 
+    // "확인" 버튼(알람 종료)이 지금 재생 중인 것을 즉시 멈출 수 있도록 붙잡아 둔다.
+    private var currentPlayer: MediaPlayer? = null
+    private var currentNotificationId: Int? = null
+
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -77,7 +81,9 @@ object AlertPlayer {
             .setContentIntent(pendingIntent)
             .build()
 
-        NotificationManagerCompat.from(context).notify(System.currentTimeMillis().toInt(), notification)
+        val notificationId = System.currentTimeMillis().toInt()
+        currentNotificationId = notificationId
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
     }
 
     private fun vibrate(context: Context) {
@@ -100,11 +106,11 @@ object AlertPlayer {
     private fun playAlarmSound(context: Context, onFinished: () -> Unit) {
         val alarmUri = RingtoneManager.getActualDefaultRingtoneUri(context, RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        val volume = AlertPrefs.getVolume(context)
 
-        // Ringtone 대신 MediaPlayer를 쓰는 이유: 기기의 시스템 알람 볼륨을 건드리지 않고
-        // 이 앱 안에서만 볼륨(0.0~1.0)을 조절하기 위해서다 (setVolume은 MediaPlayer에만 있음).
-        MediaPlayer().apply {
+        // 소프트웨어 배율은 항상 100%로 두고(1f), 실제 크기는 기기의 "알람" 스트림 볼륨이 결정한다.
+        // MainActivity의 슬라이더가 AudioManager.STREAM_ALARM을 직접 조절하므로,
+        // 재생 도중 슬라이더를 움직이면 이 소리도 그 자리에서 바로 커지고 작아진다.
+        val player = MediaPlayer().apply {
             setAudioAttributes(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
@@ -112,19 +118,22 @@ object AlertPlayer {
                     .build()
             )
             setDataSource(context, alarmUri)
-            setVolume(volume, volume)
+            setVolume(1f, 1f)
             setOnCompletionListener {
+                if (currentPlayer === it) currentPlayer = null
                 it.release()
                 onFinished()
             }
             setOnErrorListener { mp, _, _ ->
+                if (currentPlayer === mp) currentPlayer = null
                 mp.release()
                 onFinished()
                 true
             }
             prepare()
-            start()
         }
+        currentPlayer = player
+        player.start()
     }
 
     private fun speak(context: Context, body: String) {
@@ -144,6 +153,34 @@ object AlertPlayer {
         }
     }
 
+    /**
+     * "확인"(알람 종료) 버튼에서 호출한다.
+     * 재생 중인 경고음 · TTS를 즉시 멈추고, 진동을 취소하고, 떠 있는 알림을 지운다.
+     */
+    fun stop(context: Context) {
+        currentPlayer?.let { player ->
+            runCatching { if (player.isPlaying) player.stop() }
+            player.release()
+        }
+        currentPlayer = null
+
+        ttsRef?.stop()
+
+        cancelVibration(context)
+
+        currentNotificationId?.let { NotificationManagerCompat.from(context).cancel(it) }
+        currentNotificationId = null
+    }
+
+    private fun cancelVibration(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(VibratorManager::class.java).cancel()
+        } else {
+            @Suppress("DEPRECATION")
+            (context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).cancel()
+        }
+    }
+
     private fun speakWith(context: Context, tts: TextToSpeech, body: String) {
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
@@ -151,9 +188,10 @@ object AlertPlayer {
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {}
         })
-        val volume = AlertPrefs.getVolume(context)
+        // TTS도 알람 스트림에 실어 보낸다 - 실제 크기는 위 MediaPlayer와 마찬가지로
+        // 기기의 "알람" 스트림 볼륨(슬라이더)이 실시간으로 결정한다.
         val params = Bundle().apply {
-            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume)
+            putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1f)
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ALARM)
         }
         tts.speak(body, TextToSpeech.QUEUE_FLUSH, params, "sop_alert")

@@ -1,63 +1,216 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="24dp"
-    android:gravity="center_horizontal">
+    android:orientation="vertical">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="SOP 편차 경보 수신 앱"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="이 기기의 FCM 토큰 (엣지 PC 설정에 등록)"
-        android:textSize="14sp" />
+        <!-- ① 홈 -->
+        <ScrollView
+            android:id="@+id/homeContent"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/tokenText"
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:gravity="center_horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="SOP 편차 경보 수신 앱"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="이 기기의 FCM 토큰 (엣지 PC 설정에 등록)"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/tokenText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="토큰을 가져오는 중..."
+                    android:textIsSelectable="true"
+                    android:background="#EEEEEE"
+                    android:padding="12dp" />
+
+                <Button
+                    android:id="@+id/copyButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="토큰 복사" />
+
+                <Button
+                    android:id="@+id/testAlertButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="테스트 경보 재생 (소리 · 진동 · TTS)" />
+
+                <TextView
+                    android:id="@+id/volumeLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:text="경보음 크기: 60%"
+                    android:textSize="14sp" />
+
+                <SeekBar
+                    android:id="@+id/volumeSeekBar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:max="100" />
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ② 경보 상세 화면 (기획안 5.5절 그림4-②) -->
+        <LinearLayout
+            android:id="@+id/alertDetailContent"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/alertLevelBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:text="중대 편차 발생"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:background="@color/level_critical" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:id="@+id/alertTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="2026.09.08. 화요일 09:10:18"
+                    android:textSize="13sp"
+                    android:textColor="#666666" />
+
+                <TextView
+                    android:id="@+id/alertTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="2인 1조 위반"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/alertBody"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="세정기 구역, 2인 1조 위반, 09시 10분 발생"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/alertEmptyText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:text="현재 활성 경보가 없습니다."
+                    android:textSize="15sp"
+                    android:textColor="#999999"
+                    android:visibility="gone" />
+
+                <Button
+                    android:id="@+id/acknowledgeButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="40dp"
+                    android:paddingTop="16dp"
+                    android:paddingBottom="16dp"
+                    android:text="확인 (경보 종료)"
+                    android:textSize="18sp"
+                    android:textColor="@color/white"
+                    android:backgroundTint="@color/level_critical" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:text="확인을 누르면 경고음 · 진동이 즉시 멈춥니다."
+                    android:textSize="12sp"
+                    android:textColor="#999999"
+                    android:gravity="center" />
+
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ③ 오늘 이벤트 목록 (기획안 5.5절 그림4-③) -->
+        <ScrollView
+            android:id="@+id/eventListContent"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
+
+                <TextView
+                    android:id="@+id/eventListTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="오늘 편차 0건"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/eventListEmptyText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="오늘 발생한 이벤트가 없습니다."
+                    android:textSize="15sp"
+                    android:textColor="#999999"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/eventListContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:orientation="vertical" />
+
+            </LinearLayout>
+        </ScrollView>
+
+    </FrameLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="토큰을 가져오는 중..."
-        android:textIsSelectable="true"
-        android:background="#EEEEEE"
-        android:padding="12dp" />
-
-    <Button
-        android:id="@+id/copyButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:text="토큰 복사" />
-
-    <Button
-        android:id="@+id/testAlertButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:text="테스트 경보 재생 (소리 · 진동 · TTS)" />
-
-    <TextView
-        android:id="@+id/volumeLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:text="경보음 크기: 60%"
-        android:textSize="14sp" />
-
-    <SeekBar
-        android:id="@+id/volumeSeekBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:max="100" />
+        app:menu="@menu/bottom_nav_menu" />
 
 </LinearLayout>

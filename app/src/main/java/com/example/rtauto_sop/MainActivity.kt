@@ -4,18 +4,31 @@ import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Color
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.firebase.messaging.FirebaseMessaging
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var tokenText: TextView
+
+    // 경보상세 · 이벤트목록 화면 전환용
+    private lateinit var homeContent: View
+    private lateinit var alertDetailContent: View
+    private lateinit var eventListContent: View
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -41,29 +54,208 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<android.widget.Button>(R.id.testAlertButton).setOnClickListener {
-            AlertPlayer.trigger(
-                this,
-                "테스트 경보",
-                "이것은 테스트 경보입니다. 세정기 구역, 이인 일조 위반, 지금 발생."
-            )
+            val title = "테스트 경보"
+            val body = "이것은 테스트 경보입니다. 세정기 구역, 이인 일조 위반, 지금 발생."
+            EventStore.addEvent(this, "중대", title, body)
+            AlertPlayer.trigger(this, title, body)
+            refreshAlertDetail()
+            refreshEventList()
         }
 
         setupVolumeControl()
+        setupBottomNav()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // 다른 화면(알림 탭 등)에서 돌아왔을 때도 최신 상태를 보여준다.
+        refreshAlertDetail()
+        refreshEventList()
+    }
+
+    // ---------------------------------------------------------------------
+    // 하단 네비게이션 (홈 / 경보상세 / 오늘 이벤트) — 기획안 5.5절 화면 3종
+    // ---------------------------------------------------------------------
+
+    private fun setupBottomNav() {
+        homeContent = findViewById(R.id.homeContent)
+        alertDetailContent = findViewById(R.id.alertDetailContent)
+        eventListContent = findViewById(R.id.eventListContent)
+
+        findViewById<BottomNavigationView>(R.id.bottomNav).setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    showOnly(homeContent)
+                    true
+                }
+                R.id.nav_alert_detail -> {
+                    showOnly(alertDetailContent)
+                    refreshAlertDetail()
+                    true
+                }
+                R.id.nav_event_list -> {
+                    showOnly(eventListContent)
+                    refreshEventList()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun showOnly(target: View) {
+        homeContent.visibility = if (target === homeContent) View.VISIBLE else View.GONE
+        alertDetailContent.visibility = if (target === alertDetailContent) View.VISIBLE else View.GONE
+        eventListContent.visibility = if (target === eventListContent) View.VISIBLE else View.GONE
+    }
+
+    // ---------------------------------------------------------------------
+    // ② 경보 상세 화면
+    // ---------------------------------------------------------------------
+
+    private fun refreshAlertDetail() {
+        val levelBar = findViewById<TextView>(R.id.alertLevelBar)
+        val timeText = findViewById<TextView>(R.id.alertTime)
+        val titleText = findViewById<TextView>(R.id.alertTitle)
+        val bodyText = findViewById<TextView>(R.id.alertBody)
+        val emptyText = findViewById<TextView>(R.id.alertEmptyText)
+        val ackButton = findViewById<android.widget.Button>(R.id.acknowledgeButton)
+
+        val event = EventStore.latestUnacknowledged(this)
+        if (event == null) {
+            levelBar.text = "활성 경보 없음"
+            levelBar.setBackgroundColor(getColorRes(R.color.level_idle))
+            timeText.visibility = View.GONE
+            titleText.visibility = View.GONE
+            bodyText.visibility = View.GONE
+            emptyText.visibility = View.VISIBLE
+            ackButton.isEnabled = false
+            ackButton.alpha = 0.5f
+            return
+        }
+
+        levelBar.text = "${event.level} 편차 발생"
+        levelBar.setBackgroundColor(getColorRes(levelColorRes(event.level)))
+        timeText.visibility = View.VISIBLE
+        titleText.visibility = View.VISIBLE
+        bodyText.visibility = View.VISIBLE
+        emptyText.visibility = View.GONE
+        timeText.text = formatTime(event.id)
+        titleText.text = event.title
+        bodyText.text = event.body
+        ackButton.isEnabled = true
+        ackButton.alpha = 1f
+        ackButton.backgroundTintList = android.content.res.ColorStateList.valueOf(getColorRes(levelColorRes(event.level)))
+        ackButton.setOnClickListener {
+            AlertPlayer.stop(this)
+            EventStore.acknowledge(this, event.id)
+            Toast.makeText(this, "경보를 종료했습니다", Toast.LENGTH_SHORT).show()
+            refreshAlertDetail()
+            refreshEventList()
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // ③ 오늘 이벤트 목록
+    // ---------------------------------------------------------------------
+
+    private fun refreshEventList() {
+        val titleView = findViewById<TextView>(R.id.eventListTitle)
+        val emptyText = findViewById<TextView>(R.id.eventListEmptyText)
+        val container = findViewById<LinearLayout>(R.id.eventListContainer)
+
+        val events = EventStore.todayEvents(this)
+        titleView.text = "오늘 편차 ${events.size}건"
+        emptyText.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
+
+        container.removeAllViews()
+        events.forEach { event -> container.addView(buildEventRow(event)) }
+    }
+
+    private fun buildEventRow(event: AlertEvent): View {
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(12) }
+            setBackgroundColor(Color.parseColor("#F5F5F5"))
+        }
+
+        val header = TextView(this).apply {
+            text = "${event.level} · ${event.title}"
+            textSize = 15f
+            setTextColor(getColorRes(levelColorRes(event.level)))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val detail = TextView(this).apply {
+            text = "${formatTime(event.id)} · ${event.body}"
+            textSize = 13f
+            setTextColor(Color.parseColor("#666666"))
+            setPadding(0, 4, 0, 0)
+        }
+        val status = TextView(this).apply {
+            text = if (event.acknowledged) "확인 완료" else "미확인"
+            textSize = 12f
+            setTextColor(if (event.acknowledged) Color.parseColor("#4CAF50") else Color.parseColor("#D32F2F"))
+            setPadding(0, 6, 0, 0)
+        }
+
+        row.addView(header)
+        row.addView(detail)
+        row.addView(status)
+        return row
+    }
+
+    private fun levelColorRes(level: String): Int = when (level) {
+        "중대" -> R.color.level_critical
+        "주의" -> R.color.level_caution
+        else -> R.color.level_normal
+    }
+
+    private fun getColorRes(resId: Int): Int = androidx.core.content.ContextCompat.getColor(this, resId)
+
+    private fun formatTime(timestampMillis: Long): String {
+        val formatter = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.KOREA)
+        return formatter.format(Date(timestampMillis))
+    }
+
+    // ---------------------------------------------------------------------
+    // ① 홈 — 토큰 표시 · 볼륨 슬라이더
+    // ---------------------------------------------------------------------
+
+    /**
+     * 슬라이더를 기기의 "알람(Alarm)" 볼륨 스트림에 직접 연결한다.
+     * 경보음(MediaPlayer)과 TTS 모두 이 스트림으로 재생되므로(AlertPlayer 참고),
+     * 소리가 나오는 도중에 슬라이더를 움직이면 그 자리에서 바로 커지고 작아진다.
+     */
     private fun setupVolumeControl() {
         val volumeLabel = findViewById<TextView>(R.id.volumeLabel)
         val volumeSeekBar = findViewById<SeekBar>(R.id.volumeSeekBar)
+        val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
-        val savedPercent = (AlertPrefs.getVolume(this) * 100).toInt()
-        volumeSeekBar.progress = savedPercent
-        volumeLabel.text = "경보음 크기: $savedPercent%"
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        volumeSeekBar.max = maxVolume
+
+        fun updateLabel(level: Int) {
+            val percent = if (maxVolume > 0) level * 100 / maxVolume else 0
+            volumeLabel.text = "경보음 크기: $percent%"
+        }
+
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM)
+        volumeSeekBar.progress = currentVolume
+        updateLabel(currentVolume)
 
         volumeSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                volumeLabel.text = "경보음 크기: $progress%"
+                updateLabel(progress)
                 if (fromUser) {
-                    AlertPrefs.setVolume(this@MainActivity, progress / 100f)
+                    // FLAG_SHOW_UI 없이 즉시 반영 — 우리 슬라이더가 이미 크기를 보여주고 있다.
+                    audioManager.setStreamVolume(AudioManager.STREAM_ALARM, progress, 0)
                 }
             }
 
