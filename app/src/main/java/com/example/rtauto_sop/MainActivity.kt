@@ -28,6 +28,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.chip.Chip
+import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.messaging.FirebaseMessaging
@@ -35,6 +36,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 class MainActivity : AppCompatActivity() {
 
@@ -302,8 +304,53 @@ class MainActivity : AppCompatActivity() {
             selectedDateMillis = Calendar.getInstance().apply {
                 set(year, month, dayOfMonth, 0, 0, 0)
             }.timeInMillis
+            updateCalendarMonthLabel()
             refreshEventList()
         }
+        updateCalendarMonthLabel()
+
+        // CalendarView 자체의 "<  2026년 9월  >" 머리글은 한 달씩만 넘어가고 탭도
+        // 못 받아서, 연도를 훌쩍 건너뛰고 싶을 때 쓰라고 별도 라벨을 두고
+        // MaterialDatePicker(연도 그리드 내장)를 띄운다.
+        findViewById<View>(R.id.calendarHeaderRow).setOnClickListener {
+            openYearMonthPicker(calendarView)
+        }
+    }
+
+    private fun openYearMonthPicker(calendarView: CalendarView) {
+        val localNow = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        // MaterialDatePicker는 선택값을 "UTC 자정" 기준 millis로 다룬다.
+        // 로컬 타임존 그대로 넘기면 기기 시간대에 따라 하루 밀릴 수 있어 변환해준다.
+        val utcSelection = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(localNow.get(Calendar.YEAR), localNow.get(Calendar.MONTH), localNow.get(Calendar.DAY_OF_MONTH))
+        }.timeInMillis
+
+        val picker = MaterialDatePicker.Builder.datePicker()
+            .setTitleText("날짜 선택")
+            .setSelection(utcSelection)
+            .build()
+
+        picker.addOnPositiveButtonClickListener { utcMillis ->
+            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMillis }
+            val localCal = Calendar.getInstance().apply {
+                set(
+                    utcCal.get(Calendar.YEAR), utcCal.get(Calendar.MONTH), utcCal.get(Calendar.DAY_OF_MONTH),
+                    0, 0, 0
+                )
+                set(Calendar.MILLISECOND, 0)
+            }
+            selectedDateMillis = localCal.timeInMillis
+            calendarView.date = selectedDateMillis
+            updateCalendarMonthLabel()
+            refreshEventList()
+        }
+        picker.show(supportFragmentManager, "event_date_picker")
+    }
+
+    private fun updateCalendarMonthLabel() {
+        val formatter = SimpleDateFormat("yyyy년 M월", Locale.KOREA)
+        findViewById<TextView>(R.id.calendarMonthLabel).text = formatter.format(Date(selectedDateMillis))
     }
 
     private fun refreshEventList() {

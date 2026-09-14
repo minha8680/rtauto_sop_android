@@ -311,7 +311,10 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
-                    <!-- 날짜 선택 캘린더 — 날짜를 누르면 그날 이력만 아래에 나온다. -->
+                    <!-- 날짜 선택 캘린더 — 날짜를 누르면 그날 이력만 아래에 나온다.
+                         상단 라벨을 누르면 연도 · 월을 빠르게 고를 수 있는 선택기가 뜬다
+                         (기본 CalendarView의 "2026년 9월" 머리글 자체는 탭을 가로챌 수
+                         없어서, 같은 역할을 하는 우리 라벨을 따로 둔다). -->
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -321,10 +324,58 @@
                         app:strokeColor="@color/outline"
                         app:strokeWidth="1dp">
 
-                        <CalendarView
-                            android:id="@+id/eventCalendarView"
+                        <LinearLayout
                             android:layout_width="match_parent"
-                            android:layout_height="wrap_content" />
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical">
+
+                            <LinearLayout
+                                android:id="@+id/calendarHeaderRow"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:background="?attr/selectableItemBackground"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal"
+                                android:padding="16dp">
+
+                                <TextView
+                                    android:id="@+id/calendarMonthLabel"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="2026년 9월"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginEnd="4dp"
+                                    android:text="연도·월 선택"
+                                    android:textColor="@color/brand_red"
+                                    android:textSize="12sp" />
+
+                                <ImageView
+                                    android:layout_width="18dp"
+                                    android:layout_height="18dp"
+                                    android:rotation="90"
+                                    android:src="@drawable/ic_chevron_right"
+                                    android:contentDescription="@null"
+                                    app:tint="@color/brand_red" />
+                            </LinearLayout>
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:background="@color/outline" />
+
+                            <CalendarView
+                                android:id="@+id/eventCalendarView"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content" />
+                        </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 
                     <LinearLayout
