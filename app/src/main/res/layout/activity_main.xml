@@ -311,13 +311,31 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
+                    <!-- 날짜 선택 캘린더 — 날짜를 누르면 그날 이력만 아래에 나온다. -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        app:cardBackgroundColor="@color/surface"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="0dp"
+                        app:strokeColor="@color/outline"
+                        app:strokeWidth="1dp">
+
+                        <CalendarView
+                            android:id="@+id/eventCalendarView"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+                    </com.google.android.material.card.MaterialCardView>
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
                         <TextView
+                            android:id="@+id/eventListDateTitle"
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
@@ -342,7 +360,7 @@
                         android:id="@+id/eventListEmptyText"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="48dp"
+                        android:layout_marginTop="32dp"
                         android:gravity="center"
                         android:orientation="vertical"
                         android:visibility="gone">
@@ -355,10 +373,11 @@
                             app:tint="@color/text_muted" />
 
                         <TextView
+                            android:id="@+id/eventListEmptyLabel"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
-                            android:text="오늘 발생한 이벤트가 없습니다."
+                            android:text="선택한 날짜에 이벤트가 없습니다."
                             android:textSize="14sp"
                             android:textColor="@color/text_muted" />
                     </LinearLayout>

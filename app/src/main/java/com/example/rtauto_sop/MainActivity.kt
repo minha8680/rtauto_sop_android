@@ -15,6 +15,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.animation.DecelerateInterpolator
+import android.widget.CalendarView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -31,6 +32,7 @@ import com.google.android.material.slider.Slider
 import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.firebase.messaging.FirebaseMessaging
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -43,6 +45,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var alertDetailContent: View
     private lateinit var eventListContent: View
     private lateinit var settingsContent: View
+
+    // "오늘 이벤트" 탭에서 캘린더로 고른 날짜. 기본값은 오늘.
+    private var selectedDateMillis: Long = System.currentTimeMillis()
 
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -58,6 +63,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val KEY_SELECTED_NAV_ID = "selected_nav_id"
+        private const val KEY_SELECTED_DATE = "selected_date_millis"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -95,8 +101,14 @@ class MainActivity : AppCompatActivity() {
             refreshEventList()
         }
 
+        if (savedInstanceState != null) {
+            // 캘린더에서 고른 날짜도 recreate 전에 보던 값 그대로 복원한다.
+            selectedDateMillis = savedInstanceState.getLong(KEY_SELECTED_DATE, selectedDateMillis)
+        }
+
         setupVolumeControl()
         setupSettingsScreen()
+        setupEventCalendar()
         setupBottomNav()
         // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
         // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
@@ -116,6 +128,7 @@ class MainActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt(KEY_SELECTED_NAV_ID, findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId)
+        outState.putLong(KEY_SELECTED_DATE, selectedDateMillis)
     }
 
     // ---------------------------------------------------------------------
@@ -279,20 +292,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------------------------------------------------------------------
-    // ③ 오늘 이벤트 목록
+    // ③ 오늘 이벤트 목록 — 캘린더에서 날짜를 고르면 그날 이력만 보여준다.
     // ---------------------------------------------------------------------
 
+    private fun setupEventCalendar() {
+        val calendarView = findViewById<CalendarView>(R.id.eventCalendarView)
+        calendarView.date = selectedDateMillis
+        calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
+            selectedDateMillis = Calendar.getInstance().apply {
+                set(year, month, dayOfMonth, 0, 0, 0)
+            }.timeInMillis
+            refreshEventList()
+        }
+    }
+
     private fun refreshEventList() {
+        val dateTitleView = findViewById<TextView>(R.id.eventListDateTitle)
+        val emptyLabel = findViewById<TextView>(R.id.eventListEmptyLabel)
         val titleView = findViewById<TextView>(R.id.eventListTitle)
         val emptyText = findViewById<View>(R.id.eventListEmptyText)
         val container = findViewById<LinearLayout>(R.id.eventListContainer)
 
-        val events = EventStore.todayEvents(this)
+        val isToday = isSameDay(selectedDateMillis, System.currentTimeMillis())
+        val dateLabel = if (isToday) "오늘 이벤트" else "${formatDateShort(selectedDateMillis)} 이벤트"
+        dateTitleView.text = dateLabel
+        emptyLabel.text = if (isToday) "오늘 발생한 이벤트가 없습니다." else "선택한 날짜에 이벤트가 없습니다."
+
+        val events = EventStore.eventsForDate(this, selectedDateMillis)
         titleView.text = "${events.size}건"
         emptyText.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
 
         container.removeAllViews()
         events.forEach { event -> container.addView(buildEventRow(event)) }
+    }
+
+    private fun isSameDay(a: Long, b: Long): Boolean {
+        val ca = Calendar.getInstance().apply { timeInMillis = a }
+        val cb = Calendar.getInstance().apply { timeInMillis = b }
+        return ca.get(Calendar.YEAR) == cb.get(Calendar.YEAR) &&
+            ca.get(Calendar.DAY_OF_YEAR) == cb.get(Calendar.DAY_OF_YEAR)
+    }
+
+    private fun formatDateShort(timestampMillis: Long): String {
+        val formatter = SimpleDateFormat("M월 d일", Locale.KOREA)
+        return formatter.format(Date(timestampMillis))
     }
 
     private fun buildEventRow(event: AlertEvent): View {

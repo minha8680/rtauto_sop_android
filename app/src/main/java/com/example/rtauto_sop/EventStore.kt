@@ -6,14 +6,15 @@ import org.json.JSONObject
 import java.util.Calendar
 
 /**
- * 오늘 경보 이력을 기기 로컬에 보관한다 (기획안 5.5절 "오늘 이벤트 목록" 화면용).
+ * 경보 이력을 기기 로컬에 보관한다 (기획안 5.5절 "오늘 이벤트 목록" 화면 + 날짜별 조회용).
  * 1차 MVP 범위라 서버 이력 저장 없이 SharedPreferences에 JSON 배열로만 쌓는다.
- * 최근 [MAX_EVENTS]건만 보관한다.
+ * 최근 [MAX_EVENTS]건만 보관한다 — 날짜별로 거슬러 볼 수 있어야 하므로
+ * "오늘 것만" 볼 때보다 넉넉하게 잡는다.
  */
 object EventStore {
     private const val PREFS = "rtauto_sop_prefs"
     private const val KEY_EVENTS = "alert_events"
-    private const val MAX_EVENTS = 50
+    private const val MAX_EVENTS = 500
 
     fun addEvent(context: Context, level: String, title: String, body: String): AlertEvent {
         val event = AlertEvent(
@@ -48,13 +49,20 @@ object EventStore {
 
     /** 오늘(자정 이후) 발생한 이벤트만, 최신순. */
     fun todayEvents(context: Context): List<AlertEvent> {
-        val todayStart = Calendar.getInstance().apply {
+        return eventsForDate(context, System.currentTimeMillis())
+    }
+
+    /** [dateMillis]가 속한 하루(자정~다음날 자정 전) 동안 발생한 이벤트만, 최신순. */
+    fun eventsForDate(context: Context, dateMillis: Long): List<AlertEvent> {
+        val dayStart = Calendar.getInstance().apply {
+            timeInMillis = dateMillis
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-        return readAll(context).filter { it.id >= todayStart }
+        val dayEnd = dayStart + 24 * 60 * 60 * 1000L
+        return readAll(context).filter { it.id in dayStart until dayEnd }
     }
 
     private fun readAll(context: Context): List<AlertEvent> {
