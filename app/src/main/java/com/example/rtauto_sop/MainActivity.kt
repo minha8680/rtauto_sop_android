@@ -207,14 +207,15 @@ class MainActivity : AppCompatActivity() {
         fadeIn(subtitle, 720)
 
         overlay.postDelayed({
+            // 액션바를 페이드아웃이 다 끝난 뒤 따로 튀어나오게 하지 않고, 오버레이가
+            // 투명해지는 것과 동시에 보여준다 — ActionBar.show()도 자체 등장 애니메이션이
+            // 있어서, 두 애니메이션이 겹치며 하나의 자연스러운 전환처럼 보인다.
+            supportActionBar?.show()
             overlay.animate()
                 .alpha(0f)
                 .setDuration(400)
                 .setInterpolator(DecelerateInterpolator())
-                .withEndAction {
-                    overlay.visibility = View.GONE
-                    supportActionBar?.show()
-                }
+                .withEndAction { overlay.visibility = View.GONE }
                 .start()
         }, 1900)
     }
