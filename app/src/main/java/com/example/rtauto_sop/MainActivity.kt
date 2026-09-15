@@ -179,6 +179,11 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------------
 
     private fun runIntroAnimation() {
+        // introOverlay는 콘텐츠 영역만 덮는다 — 액션바는 윈도우 데코 쪽이라 별도로 그려져서,
+        // 안 숨기면 스플래시 위로 액션바(벨 · RT AUTOMATION · 탭 이름 · 다크모드 아이콘)가
+        // 그대로 비쳐 보인다. 인트로가 끝날 때(overlay가 GONE될 때) 다시 보여준다.
+        supportActionBar?.hide()
+
         val overlay = findViewById<View>(R.id.introOverlay)
         val logo = findViewById<View>(R.id.introLogo)
         val divider = findViewById<View>(R.id.introDivider)
@@ -202,6 +207,10 @@ class MainActivity : AppCompatActivity() {
         fadeIn(subtitle, 720)
 
         overlay.postDelayed({
+            // 액션바를 페이드아웃이 다 끝난 뒤 따로 튀어나오게 하지 않고, 오버레이가
+            // 투명해지는 것과 동시에 보여준다 — ActionBar.show()도 자체 등장 애니메이션이
+            // 있어서, 두 애니메이션이 겹치며 하나의 자연스러운 전환처럼 보인다.
+            supportActionBar?.show()
             overlay.animate()
                 .alpha(0f)
                 .setDuration(400)
