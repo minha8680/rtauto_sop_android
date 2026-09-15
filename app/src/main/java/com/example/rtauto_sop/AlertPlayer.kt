@@ -34,6 +34,11 @@ object AlertPlayer {
     private const val TAG = "AlertPlayer"
     private const val CHANNEL_ID_RES_NAME = "alert_channel_id"
     private const val TTS_REPEAT_INTERVAL_MS = 10_000L
+    private const val FULL_ALARM_VOLUME = 1f
+
+    // TTS가 말하는 동안 경고음을 이 크기까지 낮춘다(덕킹) — 완전히 죽이지는 않아서
+    // "아직 경보가 울리고 있다"는 감각은 남기되, 음성 문구가 또렷하게 들리게 한다.
+    private const val DUCKED_ALARM_VOLUME = 0.25f
     private var ttsRef: TextToSpeech? = null
 
     // "확인" 버튼(알람 종료)이 지금 재생 중인 것을 즉시 멈출 수 있도록 붙잡아 둔다.
@@ -176,7 +181,7 @@ object AlertPlayer {
                         .build()
                 )
                 setDataSource(context, alarmUri)
-                setVolume(1f, 1f)
+                setVolume(FULL_ALARM_VOLUME, FULL_ALARM_VOLUME)
                 setOnPreparedListener { it.start() }
                 setOnCompletionListener {
                     if (currentPlayer === it) currentPlayer = null
@@ -254,10 +259,19 @@ object AlertPlayer {
 
     private fun speakWith(context: Context, tts: TextToSpeech, body: String) {
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-            override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) {}
+            override fun onStart(utteranceId: String?) {
+                // TTS가 실제로 말하기 시작하는 순간에만 경고음을 낮춰서, 관리자가 문구를
+                // 또렷하게 들을 수 있게 한다 — 경고음과 TTS가 같은 스트림 볼륨을 쓰다 보니
+                // 사운드가 계속 원래 크기로 나오면 안내 음성이 묻힌다.
+                duckAlarmSound()
+            }
+            override fun onDone(utteranceId: String?) {
+                restoreAlarmSound()
+            }
             @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) {}
+            override fun onError(utteranceId: String?) {
+                restoreAlarmSound()
+            }
         })
         // TTS도 알람 스트림에 실어 보낸다 - 실제 크기는 위 MediaPlayer와 마찬가지로
         // 기기의 "알람" 스트림 볼륨(슬라이더)이 실시간으로 결정한다.
@@ -266,5 +280,18 @@ object AlertPlayer {
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_ALARM)
         }
         tts.speak(body, TextToSpeech.QUEUE_FLUSH, params, "sop_alert")
+    }
+
+    /** TTS가 말하는 동안 경고음(MediaPlayer)만 낮춘다 — 스트림 볼륨은 그대로 두고
+     *  이 MediaPlayer 인스턴스의 소프트웨어 볼륨만 줄인다. */
+    private fun duckAlarmSound() {
+        runCatching { currentPlayer?.setVolume(DUCKED_ALARM_VOLUME, DUCKED_ALARM_VOLUME) }
+            .onFailure { Log.w(TAG, "경고음 덕킹 실패 (무시하고 계속 진행)", it) }
+    }
+
+    /** TTS 발화가 끝나면(정상 종료든 에러든) 경고음을 원래 크기로 되돌린다. */
+    private fun restoreAlarmSound() {
+        runCatching { currentPlayer?.setVolume(FULL_ALARM_VOLUME, FULL_ALARM_VOLUME) }
+            .onFailure { Log.w(TAG, "경고음 볼륨 복원 실패 (무시하고 계속 진행)", it) }
     }
 }
