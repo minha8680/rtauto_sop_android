@@ -78,6 +78,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // 액션바를 기본 한 줄 제목 대신, 시안대로 브랜드 벨 + "RT AUTOMATION" + 탭 이름
+        // 2단 커스텀 뷰로 바꾼다. setTabTitle()이 안의 actionBarTabTitle만 갱신한다.
+        supportActionBar?.apply {
+            setDisplayShowTitleEnabled(false)
+            setDisplayShowCustomEnabled(true)
+            setCustomView(R.layout.view_actionbar_title)
+        }
+
         AlertPlayer.ensureChannel(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -115,7 +123,7 @@ class MainActivity : AppCompatActivity() {
         // 프로그램적으로 selectedItemId를 바꿀 때와 달리, 최초 진입 시엔 리스너가 안 불려서
         // 기본 탭(홈)의 액션바 제목을 따로 한 번 맞춰준다.
         if (savedInstanceState == null) {
-            supportActionBar?.title = "홈"
+            setTabTitle("홈")
         }
         // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
         // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
@@ -223,30 +231,35 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.nav_home -> {
                     showOnly(homeContent)
-                    supportActionBar?.title = "홈"
+                    setTabTitle("홈")
                     true
                 }
                 R.id.nav_alert_detail -> {
                     showOnly(alertDetailContent)
                     refreshAlertDetail()
-                    supportActionBar?.title = "경보상세"
+                    setTabTitle("경보상세")
                     true
                 }
                 R.id.nav_event_list -> {
                     showOnly(eventListContent)
                     refreshEventList()
-                    supportActionBar?.title = "오늘 이벤트"
+                    setTabTitle("오늘 이벤트")
                     true
                 }
                 R.id.nav_settings -> {
                     showOnly(settingsContent)
                     refreshSettings()
-                    supportActionBar?.title = "설정"
+                    setTabTitle("설정")
                     true
                 }
                 else -> false
             }
         }
+    }
+
+    /** 커스텀 액션바 뷰(view_actionbar_title) 안의 탭 이름 텍스트만 갱신한다. */
+    private fun setTabTitle(title: String) {
+        supportActionBar?.customView?.findViewById<TextView>(R.id.actionBarTabTitle)?.text = title
     }
 
     private fun showOnly(target: View) {
@@ -574,7 +587,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        findViewById<android.widget.Button>(R.id.clearHistoryButton).setOnClickListener {
+        findViewById<View>(R.id.clearHistoryButton).setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("오늘 이벤트 전체 삭제")
                 .setMessage("기록된 경보 이력을 모두 지웁니다. 이 동작은 되돌릴 수 없습니다.")
@@ -588,7 +601,7 @@ class MainActivity : AppCompatActivity() {
                 .show()
         }
 
-        findViewById<android.widget.Button>(R.id.openNotificationSettingsButton).setOnClickListener {
+        findViewById<View>(R.id.openNotificationSettingsButton).setOnClickListener {
             val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                     .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
