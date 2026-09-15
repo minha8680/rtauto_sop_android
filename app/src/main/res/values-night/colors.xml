@@ -1,14 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 다크모드에서 밝은 회색 카드/보조 텍스트가 튀지 않도록 톤을 낮춘다. -->
-    <color name="card_bg">#2A2A2A</color>
-    <color name="card_bg_alt">#252525</color>
-    <color name="text_secondary">#BBBBBB</color>
-    <color name="text_muted">#888888</color>
+    <!-- 다크모드 톤 — 라이트와 같은 이름을 재정의한다 (values/colors.xml 참고). -->
+    <color name="screen_bg">#14171B</color>
+    <color name="surface">#1B1F24</color>
+    <color name="outline">#2A2F36</color>
+    <color name="text_secondary">#9BA3AE</color>
+    <color name="text_muted">#6B7580</color>
 
-    <!-- 카드형 UI용 (다크) -->
-    <color name="surface">#1E1E1E</color>
-    <color name="outline">#3A3A3A</color>
-    <color name="status_ok">#66BB6A</color>
-    <color name="status_pending">#EF5350</color>
+    <color name="card_bg">#14171B</color>
+    <color name="card_bg_alt">#20242A</color>
+
+    <!-- 다크 배경 위에서도 대비가 나오도록 배경은 어둡게, 전경은 밝게 조정한다. -->
+    <color name="critical_bg">#3A1B1E</color>
+    <color name="critical_fg">#F0808A</color>
+    <color name="caution_bg">#3A2E17</color>
+    <color name="caution_fg">#E8B15A</color>
+    <color name="normal_bg">#1C2A36</color>
+    <color name="normal_fg">#7FB0DA</color>
+
+    <color name="status_ok">#57C285</color>
+    <color name="status_pending">@color/critical_fg</color>
+    <color name="success_bg">#1C2E22</color>
 </resources>

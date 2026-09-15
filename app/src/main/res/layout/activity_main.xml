@@ -44,16 +44,39 @@
                             android:orientation="vertical"
                             android:padding="20dp">
 
-                            <TextView
-                                android:layout_width="wrap_content"
+                            <LinearLayout
+                                android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:drawableStart="@drawable/ic_key"
-                                android:drawablePadding="8dp"
-                                android:drawableTint="@color/brand_red"
                                 android:gravity="center_vertical"
-                                android:text="기기 등록"
-                                android:textSize="16sp"
-                                android:textStyle="bold" />
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:drawableStart="@drawable/ic_key"
+                                    android:drawablePadding="8dp"
+                                    android:drawableTint="@color/brand_red"
+                                    android:gravity="center_vertical"
+                                    android:text="기기 등록"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:background="@drawable/bg_pill_success"
+                                    android:drawableStart="@drawable/ic_check_circle"
+                                    android:drawablePadding="4dp"
+                                    android:drawableTint="@color/status_ok"
+                                    android:gravity="center_vertical"
+                                    android:paddingHorizontal="10dp"
+                                    android:paddingVertical="4dp"
+                                    android:text="발급됨"
+                                    android:textColor="@color/status_ok"
+                                    android:textSize="11sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
 
                             <TextView
                                 android:layout_width="match_parent"
@@ -78,7 +101,8 @@
                                     android:padding="14dp"
                                     android:text="토큰을 가져오는 중..."
                                     android:textIsSelectable="true"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="@font/ibm_plex_mono"
+                                    android:textColor="@color/text_secondary"
                                     android:textSize="12sp" />
                             </com.google.android.material.card.MaterialCardView>
 
@@ -136,7 +160,7 @@
                                 android:text="테스트 경보 재생"
                                 android:textAllCaps="false"
                                 app:cornerRadius="12dp"
-                                app:icon="@drawable/ic_notification"
+                                app:icon="@drawable/ic_play"
                                 app:iconTint="@color/white" />
 
                             <View
@@ -185,16 +209,15 @@
                         android:id="@+id/alertLevelBar"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="@color/level_critical"
+                        android:background="@color/critical_bg"
                         android:drawableStart="@drawable/ic_nav_alert"
                         android:drawablePadding="10dp"
-                        android:drawableTint="@color/white"
                         android:gravity="center_vertical"
                         android:paddingHorizontal="20dp"
-                        android:paddingVertical="18dp"
+                        android:paddingVertical="16dp"
                         android:text="중대 편차 발생"
-                        android:textColor="@color/white"
-                        android:textSize="18sp"
+                        android:textColor="@color/critical_fg"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <LinearLayout
@@ -222,8 +245,9 @@
                                     android:id="@+id/alertTime"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
+                                    android:fontFamily="@font/ibm_plex_mono"
                                     android:text="2026.09.08. 화요일 09:10:18"
-                                    android:textSize="13sp"
+                                    android:textSize="12.5sp"
                                     android:textColor="@color/text_secondary" />
 
                                 <TextView
@@ -254,20 +278,36 @@
                                     android:orientation="vertical"
                                     android:visibility="gone">
 
-                                    <ImageView
-                                        android:layout_width="40dp"
-                                        android:layout_height="40dp"
-                                        android:src="@drawable/ic_check_circle"
-                                        android:contentDescription="@null"
-                                        app:tint="@color/text_muted" />
+                                    <FrameLayout
+                                        android:layout_width="64dp"
+                                        android:layout_height="64dp"
+                                        android:background="@drawable/bg_icon_circle">
+
+                                        <ImageView
+                                            android:layout_width="30dp"
+                                            android:layout_height="30dp"
+                                            android:layout_gravity="center"
+                                            android:src="@drawable/ic_check_circle"
+                                            android:contentDescription="@null"
+                                            app:tint="@color/status_ok" />
+                                    </FrameLayout>
 
                                     <TextView
                                         android:layout_width="wrap_content"
                                         android:layout_height="wrap_content"
-                                        android:layout_marginTop="10dp"
+                                        android:layout_marginTop="14dp"
                                         android:text="현재 활성 경보가 없습니다."
                                         android:textSize="14sp"
-                                        android:textColor="@color/text_muted" />
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="4dp"
+                                        android:gravity="center"
+                                        android:text="새로운 SOP 위반이 감지되면\n이 화면에 즉시 표시됩니다"
+                                        android:textSize="13sp"
+                                        android:textColor="@color/text_secondary" />
                                 </LinearLayout>
 
                                 <com.google.android.material.button.MaterialButton
@@ -275,12 +315,12 @@
                                     android:layout_width="match_parent"
                                     android:layout_height="54dp"
                                     android:layout_marginTop="24dp"
-                                    android:backgroundTint="@color/level_critical"
+                                    android:backgroundTint="@color/brand_red"
                                     android:text="확인 (경보 종료)"
                                     android:textAllCaps="false"
                                     android:textSize="16sp"
                                     app:cornerRadius="12dp"
-                                    app:icon="@drawable/ic_check_circle"
+                                    app:icon="@drawable/ic_check"
                                     app:iconTint="@color/white" />
 
                                 <TextView
@@ -543,6 +583,10 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
+                                    android:drawableStart="@drawable/ic_mic"
+                                    android:drawablePadding="10dp"
+                                    android:drawableTint="@color/text_secondary"
+                                    android:gravity="center_vertical"
                                     android:text="음성 안내 (TTS)"
                                     android:textSize="14sp" />
 
@@ -563,6 +607,10 @@
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
+                                    android:drawableStart="@drawable/ic_vibration"
+                                    android:drawablePadding="10dp"
+                                    android:drawableTint="@color/text_secondary"
+                                    android:gravity="center_vertical"
                                     android:text="진동"
                                     android:textSize="14sp" />
 
@@ -675,7 +723,7 @@
             android:id="@+id/bottomNav"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:labelVisibilityMode="labeled"
+            app:labelVisibilityMode="unlabeled"
             app:menu="@menu/bottom_nav_menu" />
 
     </LinearLayout>
