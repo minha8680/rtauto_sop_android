@@ -112,6 +112,11 @@ class MainActivity : AppCompatActivity() {
         setupSettingsScreen()
         setupEventCalendar()
         setupBottomNav()
+        // 프로그램적으로 selectedItemId를 바꿀 때와 달리, 최초 진입 시엔 리스너가 안 불려서
+        // 기본 탭(홈)의 액션바 제목을 따로 한 번 맞춰준다.
+        if (savedInstanceState == null) {
+            supportActionBar?.title = "홈"
+        }
         // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
         // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
         // 다시 뜨는 걸 막는다. 진짜 첫 실행에서만 보이면 된다.
@@ -218,21 +223,25 @@ class MainActivity : AppCompatActivity() {
             when (item.itemId) {
                 R.id.nav_home -> {
                     showOnly(homeContent)
+                    supportActionBar?.title = "홈"
                     true
                 }
                 R.id.nav_alert_detail -> {
                     showOnly(alertDetailContent)
                     refreshAlertDetail()
+                    supportActionBar?.title = "경보상세"
                     true
                 }
                 R.id.nav_event_list -> {
                     showOnly(eventListContent)
                     refreshEventList()
+                    supportActionBar?.title = "오늘 이벤트"
                     true
                 }
                 R.id.nav_settings -> {
                     showOnly(settingsContent)
                     refreshSettings()
+                    supportActionBar?.title = "설정"
                     true
                 }
                 else -> false
@@ -261,8 +270,8 @@ class MainActivity : AppCompatActivity() {
 
         val event = EventStore.latestUnacknowledged(this)
         if (event == null) {
-            levelBar.text = "활성 경보 없음"
-            levelBar.setBackgroundColor(getColorRes(R.color.level_idle))
+            // 활성 경보가 없을 때는 배너 자체를 숨긴다 — 굳이 회색 "없음" 바를 보여주지 않는다.
+            levelBar.visibility = View.GONE
             timeText.visibility = View.GONE
             titleText.visibility = View.GONE
             bodyText.visibility = View.GONE
@@ -272,8 +281,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        levelBar.visibility = View.VISIBLE
         levelBar.text = "${event.level} 편차 발생"
-        levelBar.setBackgroundColor(getColorRes(levelColorRes(event.level)))
+        levelBar.setBackgroundColor(getColorRes(levelBgRes(event.level)))
+        val fgColor = getColorRes(levelColorRes(event.level))
+        levelBar.setTextColor(fgColor)
+        levelBar.compoundDrawableTintList = android.content.res.ColorStateList.valueOf(fgColor)
         timeText.visibility = View.VISIBLE
         titleText.visibility = View.VISIBLE
         bodyText.visibility = View.VISIBLE
@@ -283,7 +296,9 @@ class MainActivity : AppCompatActivity() {
         bodyText.text = event.body
         ackButton.isEnabled = true
         ackButton.alpha = 1f
-        ackButton.backgroundTintList = android.content.res.ColorStateList.valueOf(getColorRes(levelColorRes(event.level)))
+        // 심각도와 무관하게 "확인" 버튼은 항상 브랜드 레드 하나로 통일한다 — 배너만
+        // 심각도별로 색이 바뀌고, 사용자가 눌러야 할 유일한 동작은 항상 같은 색으로 눈에 띈다.
+        ackButton.backgroundTintList = android.content.res.ColorStateList.valueOf(getColorRes(R.color.brand_red))
         ackButton.setOnClickListener {
             AlertPlayer.stop(this)
             EventStore.acknowledge(this, event.id)
@@ -428,8 +443,9 @@ class MainActivity : AppCompatActivity() {
         val levelChip = Chip(this).apply {
             text = event.level
             textSize = 11f
-            setTextColor(getColorRes(R.color.white))
-            chipBackgroundColor = android.content.res.ColorStateList.valueOf(getColorRes(levelColorRes(event.level)))
+            setTextColor(getColorRes(levelColorRes(event.level)))
+            chipBackgroundColor = android.content.res.ColorStateList.valueOf(getColorRes(levelBgRes(event.level)))
+            chipStrokeWidth = 0f
             chipMinHeight = dp(22).toFloat()
             chipStartPadding = dp(8).toFloat()
             chipEndPadding = dp(8).toFloat()
@@ -451,9 +467,14 @@ class MainActivity : AppCompatActivity() {
             textSize = 11f
             val statusColor = if (event.acknowledged) R.color.status_ok else R.color.status_pending
             setTextColor(getColorRes(statusColor))
-            chipBackgroundColor = android.content.res.ColorStateList.valueOf(getColorRes(statusColor)).withAlpha(30)
-            chipStrokeWidth = dp(1).toFloat()
-            chipStrokeColor = android.content.res.ColorStateList.valueOf(getColorRes(statusColor))
+            chipIcon = ContextCompat.getDrawable(
+                this@MainActivity,
+                if (event.acknowledged) R.drawable.ic_check_circle else R.drawable.ic_nav_alert
+            )
+            chipIconTint = android.content.res.ColorStateList.valueOf(getColorRes(statusColor))
+            chipIconSize = dp(13).toFloat()
+            chipBackgroundColor = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+            chipStrokeWidth = 0f
             chipMinHeight = dp(24).toFloat()
             isClickable = false
             isFocusable = false
@@ -471,6 +492,13 @@ class MainActivity : AppCompatActivity() {
         "중대" -> R.color.level_critical
         "주의" -> R.color.level_caution
         else -> R.color.level_normal
+    }
+
+    /** levelColorRes()의 옅은 배경 짝 — 배너 · 칩 배경에 쓴다. */
+    private fun levelBgRes(level: String): Int = when (level) {
+        "중대" -> R.color.critical_bg
+        "주의" -> R.color.caution_bg
+        else -> R.color.normal_bg
     }
 
     private fun getColorRes(resId: Int): Int = ContextCompat.getColor(this, resId)

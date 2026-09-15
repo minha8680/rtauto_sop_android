@@ -1,0 +1,27 @@
+<!-- 앱 바에 쓰는 작은 브랜드 벨 마크. ic_launcher_foreground.xml의 벨 그룹과
+     동일한 패스를 재사용한다 (좌표는 그대로, 108dp 캔버스 안에서의 translate만 뺐다) —
+     런처 아이콘과 같은 벨이 화면 곳곳의 앱 바에도 일관되게 나오도록. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="34"
+    android:viewportHeight="34">
+    <path
+        android:fillColor="#D22234"
+        android:pathData="M15.98,6.80 L18.02,6.80 L18.02,10.03 L15.98,10.03 Z" />
+    <path
+        android:fillColor="#D22234"
+        android:pathData="M17.00,9.52 L18.64,10.23 L19.40,10.95 L19.99,11.66 L20.51,12.38 L20.97,13.09 L21.38,13.80 L21.77,14.52 L22.14,15.23 L22.48,15.95 L22.81,16.66 L23.12,17.37 L23.42,18.09 L23.71,18.80 L23.99,19.52 L24.26,20.23 L24.52,20.94 L24.77,21.66 L25.02,22.37 L25.26,23.09 L25.50,23.80 L8.50,23.80 L8.74,23.09 L8.98,22.37 L9.23,21.66 L9.48,20.94 L9.74,20.23 L10.01,19.52 L10.29,18.80 L10.58,18.09 L10.88,17.37 L11.19,16.66 L11.52,15.95 L11.86,15.23 L12.23,14.52 L12.62,13.80 L13.03,13.09 L13.49,12.38 L14.01,11.66 L14.60,10.95 L15.36,10.23 L17.00,9.52 Z" />
+    <path
+        android:fillColor="#D22234"
+        android:pathData="M7.65,23.80 L26.35,23.80 L26.35,25.30 L7.65,25.30 Z" />
+    <path
+        android:fillColor="#D22234"
+        android:pathData="M15.47,27.24 a1.53,1.53 0 1,0 3.06,0 a1.53,1.53 0 1,0 -3.06,0 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.2,13.6 L17.8,13.6 L17.8,19.6 L16.2,19.6 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16.0,21.5 a1.0,1.0 0 1,0 2.0,0 a1.0,1.0 0 1,0 -2.0,0 Z" />
+</vector>

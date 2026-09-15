@@ -7,21 +7,33 @@
     <color name="brand_red">#D22234</color>
     <color name="brand_red_dark">#A01926</color>
 
-    <!-- 기획안 표 1 편차 등급 색상 -->
-    <color name="level_critical">#D32F2F</color>
-    <color name="level_normal">#1976D2</color>
-    <color name="level_caution">#F57C00</color>
+    <!-- 화면 배경 · 카드 · 경계선 · 텍스트 톤 (values-night/colors.xml에서 다크용으로 재정의) -->
+    <color name="screen_bg">#F5F6F8</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="outline">#E3E6EA</color>
+    <color name="text_secondary">#5B6470</color>
+    <color name="text_muted">#8A929D</color>
+
+    <!-- 토큰 표시 등 화면 배경과 같은 톤의 안쪽 카드용 (values-night에서 재정의) -->
+    <color name="card_bg">#F5F6F8</color>
+    <color name="card_bg_alt">#EFF1F3</color>
+
+    <!-- 심각도 색상 체계 — 옅은 배경(_bg) + 진한 전경(_fg)을 한 쌍으로 쓴다
+         (배너 · 칩 배경은 _bg, 아이콘 · 글자는 _fg). 기존 코드 호환을 위해
+         level_critical/level_caution/level_normal은 각 _fg의 별칭으로 유지한다. -->
+    <color name="critical_bg">#FBE7E9</color>
+    <color name="critical_fg">#B31E2D</color>
+    <color name="caution_bg">#FCEFDA</color>
+    <color name="caution_fg">#A15E00</color>
+    <color name="normal_bg">#E5EDF4</color>
+    <color name="normal_fg">#35618C</color>
+
+    <color name="level_critical">@color/critical_fg</color>
+    <color name="level_caution">@color/caution_fg</color>
+    <color name="level_normal">@color/normal_fg</color>
     <color name="level_idle">#9E9E9E</color>
 
-    <!-- 라이트/다크 공통으로 쓰는 화면 톤 (values-night/colors.xml에서 다크용으로 재정의) -->
-    <color name="card_bg">#EEEEEE</color>
-    <color name="card_bg_alt">#F5F5F5</color>
-    <color name="text_secondary">#666666</color>
-    <color name="text_muted">#999999</color>
-
-    <!-- 카드형 UI용 -->
-    <color name="surface">#FFFFFF</color>
-    <color name="outline">#E2E2E2</color>
-    <color name="status_ok">#2E7D32</color>
-    <color name="status_pending">#D32F2F</color>
+    <color name="status_ok">#2E7D4F</color>
+    <color name="status_pending">@color/critical_fg</color>
+    <color name="success_bg">#E9F4EE</color>
 </resources>

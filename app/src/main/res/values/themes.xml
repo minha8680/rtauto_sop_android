@@ -1,6 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Base application theme. -->
-    <style name="Theme.Rtauto_sop" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+    <style name="Theme.Rtauto_sop" parent="Theme.MaterialComponents.DayNight">
         <!-- Primary brand color (사내 RT 로고 레드). -->
         <item name="colorPrimary">@color/brand_red</item>
         <item name="colorPrimaryVariant">@color/brand_red_dark</item>
@@ -9,12 +9,30 @@
         <item name="colorSecondary">@color/brand_red</item>
         <item name="colorSecondaryVariant">@color/brand_red_dark</item>
         <item name="colorOnSecondary">@color/white</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <!-- 앱 전체 기본 서체 — 산업/관제 도구 톤에 맞춘 IBM Plex Sans KR. -->
+        <item name="android:fontFamily">@font/ibm_plex_sans_kr</item>
+        <item name="fontFamily">@font/ibm_plex_sans_kr</item>
+        <!-- 화면 배경 · 상단 상태바를 앱 바(흰 서피스 + 얇은 경계선) 톤과 맞춘다 —
+             예전의 브랜드 레드 상태바는 카드형 라이트 UI와 어울리지 않아 중립 톤으로 바꿨다. -->
+        <item name="android:windowBackground">@color/screen_bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <!-- 액션바도 브랜드 레드 대신 서피스(흰색) + 얇은 그림자로 — 카드형 라이트 UI와
+             톤을 맞추고, 레드는 버튼 · 배지 등 강조 요소에만 아껴 쓴다. -->
+        <item name="actionBarStyle">@style/Widget.Rtauto.ActionBar</item>
+        <item name="actionBarTheme">@style/ThemeOverlay.AppCompat.Light</item>
         <!-- 이 앱은 다크모드 스위치로 라이트/다크를 직접 관리하므로, OS의 자동 강제 다크
              렌더링(예: 삼성 OneUI "다른 앱에도 다크 모드 적용")은 꺼서 이중 적용을 막는다. -->
         <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
         <!-- Customize your theme here. -->
+    </style>
+
+    <!-- 액션바 배경 — colorPrimary(브랜드 레드) 대신 서피스 색을 쓴다.
+         라이트/다크 모두 @color/surface가 알아서 각 모드 값으로 풀린다. -->
+    <style name="Widget.Rtauto.ActionBar" parent="Widget.AppCompat.ActionBar.Solid">
+        <item name="background">@color/surface</item>
+        <item name="elevation">2dp</item>
     </style>
 
     <!-- 실행 시 잠깐 뜨는 스플래시 화면: 흰 배경 + 런처 아이콘과 같은 벨 마크. -->
