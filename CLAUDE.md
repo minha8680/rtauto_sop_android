@@ -223,7 +223,14 @@ regenerate the legacy `mipmap-*/ic_launcher*.webp` rasters — see git history f
 used, it wasn't kept in the repo). The splash (`introOverlay` in `activity_main.xml`, driven by
 `runIntroAnimation()` in `MainActivity`) is a custom fade-in of that same logo + "RT AUTOMATION / Co.,
 Ltd." text over ~2.3s, layered *on top of* (not instead of) the androidx `core-splashscreen` system
-splash — the latter only covers the instant before `MainActivity` inflates.
+splash — the latter only covers the instant before `MainActivity` inflates. `introOverlay` only covers
+the content area, not the action bar (a separate window-decor element drawn above the content view),
+so `runIntroAnimation()` explicitly calls `supportActionBar?.hide()` at the start and `?.show()` in the
+fade-out's `withEndAction` — without this the redesigned action bar (bell · "RT AUTOMATION" · tab name
+· dark-mode icon, see DESIGN.md) visibly shows through above the splash for its whole ~2.3s. Verified by
+temporarily stretching the 1900ms hold to ~15s on an emulator build to actually see the hidden-action-
+bar state — worth remembering if this needs re-checking, since the real duration is too short to
+reliably catch with manual screenshots.
 
 ## Known gaps vs. the proposal (5.6 절)
 

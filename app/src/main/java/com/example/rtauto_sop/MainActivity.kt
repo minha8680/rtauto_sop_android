@@ -179,6 +179,11 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------------
 
     private fun runIntroAnimation() {
+        // introOverlay는 콘텐츠 영역만 덮는다 — 액션바는 윈도우 데코 쪽이라 별도로 그려져서,
+        // 안 숨기면 스플래시 위로 액션바(벨 · RT AUTOMATION · 탭 이름 · 다크모드 아이콘)가
+        // 그대로 비쳐 보인다. 인트로가 끝날 때(overlay가 GONE될 때) 다시 보여준다.
+        supportActionBar?.hide()
+
         val overlay = findViewById<View>(R.id.introOverlay)
         val logo = findViewById<View>(R.id.introLogo)
         val divider = findViewById<View>(R.id.introDivider)
@@ -206,7 +211,10 @@ class MainActivity : AppCompatActivity() {
                 .alpha(0f)
                 .setDuration(400)
                 .setInterpolator(DecelerateInterpolator())
-                .withEndAction { overlay.visibility = View.GONE }
+                .withEndAction {
+                    overlay.visibility = View.GONE
+                    supportActionBar?.show()
+                }
                 .start()
         }, 1900)
     }
