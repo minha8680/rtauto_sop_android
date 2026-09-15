@@ -584,7 +584,9 @@ class MainActivity : AppCompatActivity() {
         textBlock.addView(levelChip)
 
         val statusChip = Chip(this).apply {
-            text = if (event.acknowledged) "확인 완료" else "미확인"
+            // autoResolved: 사람이 "확인"을 누른 게 아니라 엣지 PC가 재감지로 자동 해제한 것
+            // (기획안 5.6절) — 배지 색/아이콘은 같지만 문구로 구분해준다.
+            text = if (event.autoResolved) "자동 해제" else if (event.acknowledged) "확인 완료" else "미확인"
             textSize = 11f
             val statusColor = if (event.acknowledged) R.color.status_ok else R.color.status_pending
             setTextColor(getColorRes(statusColor))

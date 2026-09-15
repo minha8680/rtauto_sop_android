@@ -86,8 +86,19 @@ below it. Re-derive coordinates each time with `adb shell uiautomator dump` and 
 
 **Message contract (edge PC → app):** FCM message must use the `data` payload only, never `notification`
 — a `notification` payload would let the OS handle display and skip `onMessageReceived` while
-backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `data` fields: `title`,
-`body`, optional `level` (`"중대"` / `"일반"` / `"주의"`, defaults to `"중대"`).
+backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `data` fields:
+- `kind` — `"alert"` (new violation, the default when omitted — keeps old edge-PC senders working)
+  or `"resolved"` (violation cleared). `title`, `body`, `level` only apply to `"alert"`.
+- `key` — the edge PC's (rule, target) identifier, e.g. `"helmet:7"` or `"crew:None"`
+  (`webcam_sop.py`'s `fcm_key()`). Correlates an `"alert"` with the later `"resolved"` for the
+  same violation; empty/omitted means "can't be auto-resolved" (`AlertFcmService` just no-ops a
+  `resolved` message with no key rather than guessing).
+- `title` — e.g. `"2인 1조 위반"` (alert only)
+- `body` — e.g. `"세정기 구역, 2인 1조 위반, 09시 10분 발생"` (alert only)
+- `level` — `"중대"` / `"일반"` / `"주의"`, defaults to `"중대"` (alert only)
+
+A `"resolved"` message never shows a new notification or plays sound — see `AlertFcmService`'s doc
+comment and "해제 조건" below.
 
 **Playback pipeline** (`AlertFcmService` → `EventStore` → `AlertPlayer`, gated by `AppSettings`):
 1. `AlertFcmService.onMessageReceived` parses the data payload, records it via `EventStore.addEvent`,
@@ -134,16 +145,34 @@ backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `da
    real time — dragging it changes the stream volume the mixer is actively applying, it doesn't need a
    reference to the live player. Don't reintroduce a separate `setVolume()` software multiplier without
    removing this live-adjust property.
+5. **Resolve path (해제 조건, proposal 5.6절)**: stopping an alarm has two independent entry points
+   into the same `AlertPlayer.stop()` — the "확인" button (human-initiated) and
+   `AlertPlayer.resolveIfMatches(context, key)` (edge-PC-initiated, called from
+   `AlertFcmService` when a `kind="resolved"` message arrives). `resolveIfMatches` only calls
+   `stop()` if `key` equals the currently-alarming `currentKey` (set in `trigger()`, cleared in
+   `stop()`) — this stops the *right* alarm instead of whatever happens to be ringing, so a
+   `resolved` for an old violation can't cut off a newer, unrelated one that's mid-playback.
+   `EventStore.resolveByKey(context, key)` runs in parallel (not gated on `AlertPlayer`'s state) to
+   mark the matching history entry `acknowledged = true, autoResolved = true` — the proposal is
+   explicit that this clearing must come from the edge PC re-confirming normal state, never from a
+   human "확인"/voice ACK, so `autoResolved` exists to keep that distinction visible in the event
+   list ("자동 해제" vs "확인 완료") even though both set `acknowledged = true` under the hood (the
+   alert-detail banner's `latestUnacknowledged()` query doesn't need to know which).
 
 **Local persistence** (SharedPreferences, all under one file `rtauto_sop_prefs`, no server-side
 history in this MVP):
 - `TokenStore` — this device's current FCM registration token (shown/copied on the Home tab so an
   operator can paste it into the edge PC's config; there's no automatic registration endpoint yet).
 - `EventStore` — rolling JSON array (capped at `MAX_EVENTS = 500`, raised from an original 50 once
-  date-based browsing was added — see below) of `AlertEvent` records. `latestUnacknowledged()` backs
-  the alert-detail tab, `eventsForDate(dateMillis)` backs the event-list tab for whatever day is
-  selected on its calendar (`todayEvents()` is just `eventsForDate(now)`), `acknowledge(id)` is called
-  when the "확인" button stops an alarm, `clearAll()` backs the Settings tab's "오늘 이벤트 전체 삭제".
+  date-based browsing was added — see below) of `AlertEvent` records (`id`, `level`, `title`, `body`,
+  `acknowledged`, `autoResolved`, `key` — the last two default `false`/`null` so old stored JSON
+  without them still parses via `optBoolean`/`has()` checks in `readAll()`, not `getBoolean`/
+  `getString`). `latestUnacknowledged()` backs the alert-detail tab, `eventsForDate(dateMillis)` backs
+  the event-list tab for whatever day is selected on its calendar (`todayEvents()` is just
+  `eventsForDate(now)`), `acknowledge(id)` is called when the "확인" button stops an alarm,
+  `resolveByKey(key)` is called from `AlertFcmService` on a `kind="resolved"` message (see Resolve
+  path above) and sets both `acknowledged` and `autoResolved` on every matching not-yet-acknowledged
+  event, `clearAll()` backs the Settings tab's "오늘 이벤트 전체 삭제".
   `datesWithEventsInMonth(context, year, month)` backs the event-dot indicators on the custom calendar
   grid (below) — it's a separate query rather than calling `eventsForDate()` per day so the whole
   month's dot layout is one pass over the stored events instead of ~30 separate reads.
@@ -173,7 +202,10 @@ as the source of truth for how each screen's logic is wired:
   banner (`levelBgRes()`/`levelColorRes()` pair) + card; the banner `View` is fully `GONE` (not just
   recolored) when there's no active alert, showing a circled-checkmark empty state instead. The
   "확인 (경보 종료)" button calls `AlertPlayer.stop()` + `EventStore.acknowledge()` and is always
-  brand red regardless of the alert's severity (see DESIGN.md for why).
+  brand red regardless of the alert's severity (see DESIGN.md for why). The alarm can also stop on
+  its own without this button — see "Resolve path" above — in which case this banner disappears the
+  next time `refreshAlertDetail()` runs (`latestUnacknowledged()` no longer returns it) with no extra
+  code needed here.
 - **오늘 이벤트** (`nav_event_list`) — the calendar is a **custom-built month grid**, not the stock
   `CalendarView` (removed entirely). `MainActivity.renderCalendarGrid()` builds weekday header + week
   rows programmatically (same "build views in code, no RecyclerView" style `buildEventRow()` already
@@ -189,7 +221,9 @@ as the source of truth for how each screen's logic is wired:
   red-circle version was invisible). Event rows below are still `MaterialCardView` + `Chip` built in
   code (no RecyclerView — kept intentionally simple for this MVP's data volume, now up to
   `MAX_EVENTS`), with severity/status chips using the same tinted-badge style as the alert-detail
-  banner.
+  banner. The status chip reads "미확인" / "확인 완료" / "자동 해제" (the last for `autoResolved`
+  events — see "Resolve path" above); "확인 완료" and "자동 해제" share the same color/icon
+  (`status_ok`/`ic_check_circle`), only the label text tells them apart.
 - **설정** (`nav_settings`) — rebuilt as a flat list (section labels + edge-to-edge rows + dividers,
   see DESIGN.md), not three bordered cards. 경보음 선택 (opens
   `RingtoneManager.ACTION_RINGTONE_PICKER` via `soundPickerLauncher`, result saved through
@@ -248,7 +282,11 @@ Not implemented yet, in case a task asks to extend toward the full design: the p
 re-send is only partially covered — `AlertPlayer` now repeats the **TTS voice** every 10 seconds until
 acknowledged (see Architecture above), but the notification, alarm sound, and vibration all still fire
 just once, not on the same repeating schedule. Also missing: full-screen forced alarm over the lock
-screen, auto-clear when the edge PC reports the 2-person rule restored (currently only the local "확인"
-button clears an alert), the safety-zone marker/anchor-point logic (5.7 절, entirely edge-PC-side, not
-part of this app), and the edge PC's own FastAPI send service (only the throwaway
-`tools/send_test_alert.py` stand-in exists so far).
+screen, the safety-zone marker/anchor-point logic (5.7 절, entirely edge-PC-side, not part of this
+app), and the edge PC's own FastAPI send service (only the throwaway `tools/send_test_alert.py`
+stand-in exists so far, plus `webcam_sop.py --fcm-token` in the edge-PC repo for the real detection
+loop).
+
+**Resolved (2026-09-15)**: auto-clear when the edge PC reports normal state restored — see "Resolve
+path" under Architecture. `kind="resolved"` FCM messages (not yet exercised against a real running
+`webcam_sop.py`, only compiled and reasoned through — verify end-to-end before relying on it).

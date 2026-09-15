@@ -16,13 +16,15 @@ object EventStore {
     private const val KEY_EVENTS = "alert_events"
     private const val MAX_EVENTS = 500
 
-    fun addEvent(context: Context, level: String, title: String, body: String): AlertEvent {
+    fun addEvent(context: Context, level: String, title: String, body: String, key: String? = null): AlertEvent {
         val event = AlertEvent(
             id = System.currentTimeMillis(),
             level = level,
             title = title,
             body = body,
             acknowledged = false,
+            autoResolved = false,
+            key = key,
         )
         val events = readAll(context).toMutableList()
         events.add(0, event)
@@ -35,6 +37,26 @@ object EventStore {
             if (it.id == id) it.copy(acknowledged = true) else it
         }
         writeAll(context, events)
+    }
+
+    /**
+     * 엣지 PC가 FCM으로 "해제"를 보고했을 때 호출한다(기획안 5.6절 — 사람의 확인이 아니라
+     * 동일 검출 경로 재확인으로만 해제되어야 함). [key]와 일치하면서 아직 확인 안 된 이벤트를
+     * 전부 acknowledged=true, autoResolved=true로 갱신한다. 하나라도 갱신했으면 true 반환.
+     */
+    fun resolveByKey(context: Context, key: String): Boolean {
+        if (key.isEmpty()) return false
+        var matched = false
+        val events = readAll(context).map {
+            if (it.key == key && !it.acknowledged) {
+                matched = true
+                it.copy(acknowledged = true, autoResolved = true)
+            } else {
+                it
+            }
+        }
+        if (matched) writeAll(context, events)
+        return matched
     }
 
     /** 아직 "확인"을 누르지 않은 것 중 가장 최근 경보. 없으면 null. */
@@ -91,6 +113,9 @@ object EventStore {
                 title = o.getString("title"),
                 body = o.getString("body"),
                 acknowledged = o.getBoolean("acknowledged"),
+                // optBoolean/optString — 이 두 필드가 없던 구버전 저장 데이터도 깨지지 않게
+                autoResolved = o.optBoolean("autoResolved", false),
+                key = if (o.has("key") && !o.isNull("key")) o.getString("key") else null,
             )
         }
     }
@@ -105,6 +130,10 @@ object EventStore {
                     put("title", e.title)
                     put("body", e.body)
                     put("acknowledged", e.acknowledged)
+                    put("autoResolved", e.autoResolved)
+                    // e.key가 null이면 org.json이 이 key 자체를 안 씀(값을 null로 넣으면
+                    // 프로퍼티가 제거됨) — 그래서 읽는 쪽에서 getString이 아니라 has()로 확인한다.
+                    put("key", e.key)
                 }
             )
         }
