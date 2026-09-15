@@ -10,27 +10,39 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.os.CombinedVibration
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import java.util.Locale
 
 /**
  * 편차 경보 발생 시 알림 표시 + 경고음 재생 + 진동 + TTS 안내를 한 번에 처리한다.
- * 1차 MVP 범위: 도착 시 1회 재생. 전체화면 강제 경보 / 30초 재발송은 이후 단계에서 추가.
+ * 알림 · 경고음 · 진동은 도착 시 1회. TTS 음성 안내는 경고음과 동시에 시작해서(경고음 완료를
+ * 기다리지 않는다 — 실제 알람 사운드는 자연 종료 없이 몇 분씩 이어지는 것도 흔해서, 기다리면
+ * 안내가 아예 안 나올 수 있다) "확인"을 누르기 전까지 10초 간격으로 계속 반복한다. 1차 MVP
+ * 범위: 사운드/진동까지 반복하는 전체화면 강제 경보(30초 재발송)는 아직 아님 — 이후 단계에서 추가.
  */
 object AlertPlayer {
 
+    private const val TAG = "AlertPlayer"
     private const val CHANNEL_ID_RES_NAME = "alert_channel_id"
+    private const val TTS_REPEAT_INTERVAL_MS = 10_000L
     private var ttsRef: TextToSpeech? = null
 
     // "확인" 버튼(알람 종료)이 지금 재생 중인 것을 즉시 멈출 수 있도록 붙잡아 둔다.
     private var currentPlayer: MediaPlayer? = null
     private var currentNotificationId: Int? = null
+
+    // "확인"을 누르기 전까지 TTS를 10초마다 반복 재생하는 예약. stop()이나 새 경보 도착 시 취소한다.
+    private var repeatHandler: Handler? = null
+    private var repeatRunnable: Runnable? = null
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -61,11 +73,41 @@ object AlertPlayer {
         if (AppSettings.isVibrationEnabled(context)) {
             vibrate(context)
         }
-        playAlarmSound(context) {
-            if (AppSettings.isTtsEnabled(context)) {
-                speak(context, body)
+        playAlarmSound(context)
+        // TTS는 경고음 완료를 기다리지 않고 곧장 시작한다 — 실제 "알람" 사운드는 몇 분씩
+        // 이어지도록 만들어진 것도 흔해서(자동으로 안 끝남), 완료 콜백을 기다렸다간 음성
+        // 안내가 한참 늦어지거나 아예 안 나올 수 있다. 사이렌(경고음)과 안내 방송(TTS)이
+        // 동시에 나온다고 보면 된다.
+        if (AppSettings.isTtsEnabled(context)) {
+            speak(context, body)
+        }
+        // "확인"을 누르기 전까지 10초 간격으로 TTS만 계속 반복한다.
+        scheduleTtsRepeat(context.applicationContext, body)
+    }
+
+    /** 10초마다 [speak]를 다시 호출해, "확인"을 누르기 전까지 음성 안내를 반복한다. */
+    private fun scheduleTtsRepeat(appContext: Context, body: String) {
+        cancelTtsRepeat()
+        val handler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                // 매 반복마다 최신 설정을 확인한다 — 반복 도중 설정 탭에서 TTS를 꺼도 바로 반영되게.
+                if (AppSettings.isTtsEnabled(appContext)) {
+                    Log.i(TAG, "TTS 반복 재생 (10초 간격): $body")
+                    speak(appContext, body)
+                }
+                handler.postDelayed(this, TTS_REPEAT_INTERVAL_MS)
             }
         }
+        repeatHandler = handler
+        repeatRunnable = runnable
+        handler.postDelayed(runnable, TTS_REPEAT_INTERVAL_MS)
+    }
+
+    private fun cancelTtsRepeat() {
+        repeatRunnable?.let { repeatHandler?.removeCallbacks(it) }
+        repeatHandler = null
+        repeatRunnable = null
     }
 
     private fun showNotification(context: Context, title: String, body: String) {
@@ -106,7 +148,7 @@ object AlertPlayer {
         }
     }
 
-    private fun playAlarmSound(context: Context, onFinished: () -> Unit) {
+    private fun playAlarmSound(context: Context) {
         // 경보가 연달아 울릴 때 이전 소리 위에 새 소리가 겹쳐 쌓이지 않도록,
         // 새로 재생하기 전에 지금 재생 중인 것부터 확실히 멈추고 정리한다.
         // (이걸 안 하면 currentPlayer가 새 인스턴스로 덮어써지면서 이전 MediaPlayer는
@@ -116,6 +158,8 @@ object AlertPlayer {
         // 이전 경보의 TTS가 아직 말하는 중이었다면 그것도 같이 끊는다 —
         // 새 경고음과 옛 음성 안내가 동시에 겹쳐 들리지 않게.
         ttsRef?.stop()
+        // 이전 경보의 10초 반복 예약도 취소 — 안 하면 이전 문구와 새 문구가 번갈아 겹쳐 들린다.
+        cancelTtsRepeat()
 
         // 설정 탭에서 사용자가 고른 경보음이 있으면 그걸 쓰고, 없으면 기기 기본 알람음을 쓴다.
         val alarmUri = AppSettings.resolveAlarmSoundUri(context)
@@ -137,12 +181,10 @@ object AlertPlayer {
                 setOnCompletionListener {
                     if (currentPlayer === it) currentPlayer = null
                     it.release()
-                    onFinished()
                 }
                 setOnErrorListener { mp, _, _ ->
                     if (currentPlayer === mp) currentPlayer = null
                     mp.release()
-                    onFinished()
                     true
                 }
                 // prepare()는 완료될 때까지 호출 스레드를 막는 블로킹 호출이라, 트리거 경로가
@@ -156,7 +198,6 @@ object AlertPlayer {
             // 경보음 URI가 깨져 있거나(기기에 기본 알람음이 없는 경우 등) setDataSource/prepareAsync가
             // 던지는 예외를 여기서 잡지 않으면 앱 전체가 크래시로 죽는다 — 경보음만 건너뛰고 TTS는 계속한다.
             currentPlayer = null
-            onFinished()
         }
     }
 
@@ -182,6 +223,7 @@ object AlertPlayer {
      * 재생 중인 경고음 · TTS를 즉시 멈추고, 진동을 취소하고, 떠 있는 알림을 지운다.
      */
     fun stop(context: Context) {
+        cancelTtsRepeat()
         stopCurrentSound()
 
         ttsRef?.stop()

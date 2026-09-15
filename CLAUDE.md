@@ -92,11 +92,23 @@ backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `da
 **Playback pipeline** (`AlertFcmService` → `EventStore` → `AlertPlayer`, gated by `AppSettings`):
 1. `AlertFcmService.onMessageReceived` parses the data payload, records it via `EventStore.addEvent`,
    then calls `AlertPlayer.trigger`.
-2. `AlertPlayer` (singleton `object`) does, in order: show a notification, vibrate (skipped if
-   `AppSettings.isVibrationEnabled` is false), play the alarm sound, then speak the body via TTS
-   (skipped if `AppSettings.isTtsEnabled` is false). It holds the currently-playing `MediaPlayer` and
-   `TextToSpeech` instances at object scope so a later `AlertPlayer.stop()` call (wired to the "확인"
-   button in the alert-detail screen) can interrupt playback immediately — this is the "알람 종료" action.
+2. `AlertPlayer` (singleton `object`) does: show a notification, vibrate once (skipped if
+   `AppSettings.isVibrationEnabled` is false), start the alarm sound, **and** — concurrently, not
+   waiting for the alarm sound to finish — speak the body via TTS (skipped if
+   `AppSettings.isTtsEnabled` is false), then keep re-speaking it every 10 seconds
+   (`TTS_REPEAT_INTERVAL_MS`, via a `Handler(Looper.getMainLooper())`) until `stop()` is called. TTS is
+   deliberately **not** sequenced after the alarm sound's completion callback — real alarm-type sounds
+   are often designed to not finish on their own for a long time (confirmed on-device: `dumpsys audio`
+   showed the default alarm `MediaPlayer` still `state:started` several minutes after triggering), so
+   gating TTS on that completion event meant it could take minutes to ever speak, or never repeat in
+   any useful timeframe. Voice repetition is checked/re-scheduled against `AppSettings.isTtsEnabled`
+   on every firing (not just once at trigger time), so toggling the Settings-tab switch mid-alarm takes
+   effect on the next tick. `AlertPlayer` holds the currently-playing `MediaPlayer`, `TextToSpeech`
+   instance, and the repeat `Handler`/`Runnable` at object scope so a later `AlertPlayer.stop()` call
+   (wired to the "확인" button in the alert-detail screen) can cancel all three immediately — this is
+   the "알람 종료" action; `playAlarmSound()` also cancels any previous alert's still-pending repeat
+   schedule before starting its own, so two overlapping alerts don't end up with two independent
+   10-second loops both firing.
    `playAlarmSound()` uses `MediaPlayer.prepareAsync()` + `setOnPreparedListener`, never the blocking
    `prepare()` — the trigger path can run on the UI thread (the 테스트 경보 재생 button calls
    `AlertPlayer.trigger()` directly from its click listener), so a synchronous `prepare()` there risks
@@ -104,7 +116,8 @@ backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `da
    freeze, confirmed via `/data/anr` traces). The whole `MediaPlayer` setup is also wrapped in
    `try/catch` — an invalid/revoked alarm-sound `Uri` throwing from `setDataSource`/`prepareAsync`
    used to crash the app outright; now it just skips the sound and still runs TTS. Don't reintroduce a
-   bare `prepare()` call or drop the try/catch here.
+   bare `prepare()` call, drop the try/catch, or re-couple TTS to the alarm sound's completion
+   callback here.
 3. **Alarm sound source**: `AppSettings.resolveAlarmSoundUri()` — the user's chosen sound (picked via
    the Settings tab's system ringtone picker) if set, else the device's default alarm ringtone.
 4. **Volume is intentionally not a custom software gain.** Both the alarm `MediaPlayer` and the TTS
@@ -214,8 +227,11 @@ splash — the latter only covers the instant before `MainActivity` inflates.
 
 ## Known gaps vs. the proposal (5.6 절)
 
-Not implemented yet, in case a task asks to extend toward the full design: 30-second re-send until
-acknowledged, full-screen forced alarm over the lock screen, auto-clear when the edge PC reports the
-2-person rule restored (currently only the local "확인" button clears an alert), the safety-zone
-marker/anchor-point logic (5.7 절, entirely edge-PC-side, not part of this app), and the edge PC's own
-FastAPI send service (only the throwaway `tools/send_test_alert.py` stand-in exists so far).
+Not implemented yet, in case a task asks to extend toward the full design: the proposal's 30-second
+re-send is only partially covered — `AlertPlayer` now repeats the **TTS voice** every 10 seconds until
+acknowledged (see Architecture above), but the notification, alarm sound, and vibration all still fire
+just once, not on the same repeating schedule. Also missing: full-screen forced alarm over the lock
+screen, auto-clear when the edge PC reports the 2-person rule restored (currently only the local "확인"
+button clears an alert), the safety-zone marker/anchor-point logic (5.7 절, entirely edge-PC-side, not
+part of this app), and the edge PC's own FastAPI send service (only the throwaway
+`tools/send_test_alert.py` stand-in exists so far).
