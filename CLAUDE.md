@@ -16,6 +16,10 @@ playback — those are documented in the proposal but not yet implemented here.
 
 Current package: `com.example.rtauto_sop` (still the template package name, not yet renamed).
 
+The UI went through a full visual redesign (see [`DESIGN.md`](./DESIGN.md) for the source mockup,
+color/typography/icon decisions, and exactly what was and wasn't ported 1:1 from it) — read that
+before changing colors, fonts, icons, the calendar, or the Settings layout.
+
 ## Build / install / run
 
 There is no CLI test suite exercised in this project yet (only the stock JUnit/Espresso template
@@ -93,6 +97,14 @@ backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `da
    (skipped if `AppSettings.isTtsEnabled` is false). It holds the currently-playing `MediaPlayer` and
    `TextToSpeech` instances at object scope so a later `AlertPlayer.stop()` call (wired to the "확인"
    button in the alert-detail screen) can interrupt playback immediately — this is the "알람 종료" action.
+   `playAlarmSound()` uses `MediaPlayer.prepareAsync()` + `setOnPreparedListener`, never the blocking
+   `prepare()` — the trigger path can run on the UI thread (the 테스트 경보 재생 button calls
+   `AlertPlayer.trigger()` directly from its click listener), so a synchronous `prepare()` there risks
+   an ANR if the audio backend is slow (reproduced on a cold emulator: a multi-second main-thread
+   freeze, confirmed via `/data/anr` traces). The whole `MediaPlayer` setup is also wrapped in
+   `try/catch` — an invalid/revoked alarm-sound `Uri` throwing from `setDataSource`/`prepareAsync`
+   used to crash the app outright; now it just skips the sound and still runs TTS. Don't reintroduce a
+   bare `prepare()` call or drop the try/catch here.
 3. **Alarm sound source**: `AppSettings.resolveAlarmSoundUri()` — the user's chosen sound (picked via
    the Settings tab's system ringtone picker) if set, else the device's default alarm ringtone.
 4. **Volume is intentionally not a custom software gain.** Both the alarm `MediaPlayer` and the TTS
@@ -112,37 +124,58 @@ history in this MVP):
   the alert-detail tab, `eventsForDate(dateMillis)` backs the event-list tab for whatever day is
   selected on its calendar (`todayEvents()` is just `eventsForDate(now)`), `acknowledge(id)` is called
   when the "확인" button stops an alarm, `clearAll()` backs the Settings tab's "오늘 이벤트 전체 삭제".
+  `datesWithEventsInMonth(context, year, month)` backs the event-dot indicators on the custom calendar
+  grid (below) — it's a separate query rather than calling `eventsForDate()` per day so the whole
+  month's dot layout is one pass over the stored events instead of ~30 separate reads.
 - `ThemePrefs` — manual dark-mode on/off (independent of the OS setting; see Dark mode below).
 - `AppSettings` — chosen alarm sound `Uri` (nullable = "use device default"), TTS on/off, vibration
   on/off.
 
 **UI shape** (`MainActivity` + single `activity_main.xml`, no Fragments/Navigation component — four
-sibling `View`s inside one `FrameLayout`, toggled by visibility from a `BottomNavigationView`; the
-first three roughly match the proposal's 그림4 mockup in section 5.5 of the PDF, 설정 was added later
-and isn't in the proposal). Visual style is card-based (`MaterialCardView` panels with a 1dp outline,
-no elevation shadow) with `Chip` components for level/status badges — built to read as a normal
-enterprise notification app rather than a bare functional prototype:
-- **홈** (`nav_home`) — device-registration card (FCM token display/copy) and an alert-test card
-  (테스트 경보 재생 button + the alarm-volume `Slider`, described above).
-- **경보상세** (`nav_alert_detail`) — shows `EventStore.latestUnacknowledged()` in a colored severity
-  banner + card; empty state (체크 아이콘 + 안내문구) if none. The "확인 (경보 종료)" button calls
-  `AlertPlayer.stop()` + `EventStore.acknowledge()`.
-- **오늘 이벤트** (`nav_event_list`) — a `CalendarView` at the top (today highlighted) drives
-  `selectedDateMillis`; tapping any day calls `EventStore.eventsForDate()` for that day and re-renders
-  the list below, with the header switching between "오늘 이벤트" and "M월 d일 이벤트". Above the
-  `CalendarView`, a separate clickable label ("연도·월 선택") opens a `MaterialDatePicker` — this
-  exists only because the stock `CalendarView`'s own "2026년 9월" header can't be intercepted or have
-  a listener attached, and only pages one month at a time; `MaterialDatePicker`'s built-in year-grid
-  (tap its own month/year label) is what actually lets the user jump years quickly. Selecting a date
-  there converts UTC-midnight (`MaterialDatePicker`'s convention) back to a local-timezone day-start
-  before syncing it into `selectedDateMillis` and the inline `CalendarView` — don't skip that
-  conversion or dates shift by one near timezone boundaries. Rows are built in code as
-  `MaterialCardView` + `Chip` (no RecyclerView — kept intentionally simple for this MVP's data volume,
-  now up to `MAX_EVENTS`).
-- **설정** (`nav_settings`) — 경보음 선택 (opens `RingtoneManager.ACTION_RINGTONE_PICKER` via
-  `soundPickerLauncher`, result saved through `AppSettings`), TTS/진동 switches, "오늘 이벤트 전체
-  삭제" (confirm dialog → `EventStore.clearAll()`), app version (`BuildConfig.VERSION_NAME`), and a
-  shortcut to the system per-app notification settings screen.
+sibling `View`s inside one `FrameLayout`, toggled by visibility from a `BottomNavigationView`). Visual
+design follows the redesign documented in [`DESIGN.md`](./DESIGN.md) (severity-tinted badges instead
+of solid-fill, IBM Plex Sans KR/Mono, stroke-style icons throughout, flat `MaterialCardView` panels
+with a 1dp outline and no elevation shadow) rather than literally matching the proposal PDF's 그림4
+mockup anymore — treat DESIGN.md as the source of truth for colors/typography/icons, and this section
+as the source of truth for how each screen's logic is wired:
+- **App bar** — not the default single-line title. `view_actionbar_title.xml` is set as the action
+  bar's custom view (`setDisplayShowCustomEnabled(true)`); `MainActivity.setTabTitle(String)` updates
+  just its `actionBarTabTitle` `TextView` (bell icon + "RT AUTOMATION" eyebrow stay static). Called
+  once for the default tab in `onCreate()` and again from every `BottomNavigationView` item-selected
+  branch — if you add a fifth tab, remember to call it there too or the app bar will keep showing the
+  previous tab's name.
+- **Bottom nav** — `app:labelVisibilityMode="unlabeled"` (icons only, no text) — deliberately dropped
+  after the app bar started showing the tab name too (see DESIGN.md); don't re-enable labels without
+  also revisiting that.
+- **홈** (`nav_home`) — device-registration card (FCM token display/copy, "발급됨" status badge) and
+  an alert-test card (테스트 경보 재생 button + the alarm-volume `Slider`, described above).
+- **경보상세** (`nav_alert_detail`) — shows `EventStore.latestUnacknowledged()` in a severity-tinted
+  banner (`levelBgRes()`/`levelColorRes()` pair) + card; the banner `View` is fully `GONE` (not just
+  recolored) when there's no active alert, showing a circled-checkmark empty state instead. The
+  "확인 (경보 종료)" button calls `AlertPlayer.stop()` + `EventStore.acknowledge()` and is always
+  brand red regardless of the alert's severity (see DESIGN.md for why).
+- **오늘 이벤트** (`nav_event_list`) — the calendar is a **custom-built month grid**, not the stock
+  `CalendarView` (removed entirely). `MainActivity.renderCalendarGrid()` builds weekday header + week
+  rows programmatically (same "build views in code, no RecyclerView" style `buildEventRow()` already
+  used), keyed off `displayedMonth` (which month is on screen) kept separate from `selectedDateMillis`
+  (which day is selected) so paging months doesn't change the selection. `calendarPrevMonth`/
+  `calendarNextMonth` step one month; tapping the centered `calendarMonthLabel` opens a
+  `MaterialDatePicker` (its built-in year-grid lets you jump years instantly) — selecting a date there
+  converts UTC-midnight (`MaterialDatePicker`'s convention) back to a local-timezone day-start before
+  syncing `selectedDateMillis`/`displayedMonth` — don't skip that conversion or dates shift by one near
+  timezone boundaries. Tapping a day cell calls `EventStore.eventsForDate()` and re-renders the list
+  below, with the header switching between "오늘 이벤트" and "M월 d일 이벤트". Event-day dots come from
+  `EventStore.datesWithEventsInMonth()` and are always brand red (see DESIGN.md — a white-on-today's-
+  red-circle version was invisible). Event rows below are still `MaterialCardView` + `Chip` built in
+  code (no RecyclerView — kept intentionally simple for this MVP's data volume, now up to
+  `MAX_EVENTS`), with severity/status chips using the same tinted-badge style as the alert-detail
+  banner.
+- **설정** (`nav_settings`) — rebuilt as a flat list (section labels + edge-to-edge rows + dividers,
+  see DESIGN.md), not three bordered cards. 경보음 선택 (opens
+  `RingtoneManager.ACTION_RINGTONE_PICKER` via `soundPickerLauncher`, result saved through
+  `AppSettings`), TTS/진동 `SwitchMaterial` rows, "오늘 이벤트 전체 삭제" and "알림 설정 바로가기" are
+  now plain clickable `LinearLayout` rows (not `MaterialButton` — if you `findViewById` them, cast to
+  `View`, not `Button`), app version (`BuildConfig.VERSION_NAME`).
 
 Both the alert-detail and event-list tabs refresh in `onResume()` and after the test-alert button
 fires, so switching tabs or backgrounding/foregrounding the app is the only "live update" mechanism —

@@ -1,0 +1,5 @@
+<!-- 캘린더 그리드에서 "오늘" 칸의 채워진 원. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@color/brand_red" />
+</shape>

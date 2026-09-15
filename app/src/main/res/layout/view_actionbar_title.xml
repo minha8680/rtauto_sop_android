@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 액션바 커스텀 뷰 — 브랜드 벨 마크 + "RT AUTOMATION" 눈썹 텍스트 + 탭 이름 2단 표기.
+     시안(Claude Design 캔버스)의 앱 바 레이아웃을 그대로 따른다. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginEnd="8dp"
+        android:src="@drawable/ic_notification"
+        android:contentDescription="@null"
+        app:tint="@color/brand_red" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="RT AUTOMATION"
+            android:textColor="@color/text_muted"
+            android:textSize="9.5sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.09" />
+
+        <TextView
+            android:id="@+id/actionBarTabTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="홈"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,5 @@
+<!-- 이벤트가 있는 날짜 아래 찍는 작은 점. 실제 색은 코드에서 backgroundTintList로 입힌다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <solid android:color="@android:color/white" />
+</shape>
