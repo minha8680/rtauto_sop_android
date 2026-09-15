@@ -28,6 +28,10 @@ import java.util.Locale
  * 기다리지 않는다 — 실제 알람 사운드는 자연 종료 없이 몇 분씩 이어지는 것도 흔해서, 기다리면
  * 안내가 아예 안 나올 수 있다) "확인"을 누르기 전까지 10초 간격으로 계속 반복한다. 1차 MVP
  * 범위: 사운드/진동까지 반복하는 전체화면 강제 경보(30초 재발송)는 아직 아님 — 이후 단계에서 추가.
+ *
+ * 경보를 멈추는 경로는 둘 — 사람이 "확인" 버튼을 눌러 [stop]을 직접 호출하거나, 엣지 PC가
+ * 같은 위반이 재감지 없이 해제됐다고 FCM으로 알려와서 [resolveIfMatches]가 [stop]을 대신
+ * 호출하거나(기획안 5.6절 "해제 조건" — 사람의 확인이 아니라 동일 검출 경로 재확인으로만 해제).
  */
 object AlertPlayer {
 
@@ -44,6 +48,11 @@ object AlertPlayer {
     // "확인" 버튼(알람 종료)이 지금 재생 중인 것을 즉시 멈출 수 있도록 붙잡아 둔다.
     private var currentPlayer: MediaPlayer? = null
     private var currentNotificationId: Int? = null
+
+    // 지금 울리고 있는 경보의 (규칙, 대상) 식별자 — 예: "helmet:7". 엣지 PC가 나중에 보내는
+    // "해제" 메시지가 지금 울리는 것과 같은 위반인지 맞춰볼 때 쓴다(resolveIfMatches 참고).
+    // 로컬 테스트 경보처럼 key 없이 트리거된 경우 null.
+    private var currentKey: String? = null
 
     // "확인"을 누르기 전까지 TTS를 10초마다 반복 재생하는 예약. stop()이나 새 경보 도착 시 취소한다.
     private var repeatHandler: Handler? = null
@@ -71,8 +80,12 @@ object AlertPlayer {
     /**
      * @param title 편차 제목 (예: "2인 1조 위반")
      * @param body  TTS로 읽어줄 상세 문구 (예: "세정기 구역, 2인 1조 위반, 09시 10분 발생")
+     * @param key   엣지 PC의 (규칙, 대상) 식별자 — 예: "helmet:7". 이후 이 경보가 해제됐다는
+     *              FCM 메시지가 오면 [resolveIfMatches]가 이 값과 비교해 자동으로 멈출지 판단한다.
+     *              로컬 테스트 경보(홈 화면 "테스트 경보 재생")처럼 없으면 null.
      */
-    fun trigger(context: Context, title: String, body: String) {
+    fun trigger(context: Context, title: String, body: String, key: String? = null) {
+        currentKey = key
         ensureChannel(context)
         showNotification(context, title, body)
         if (AppSettings.isVibrationEnabled(context)) {
@@ -237,6 +250,20 @@ object AlertPlayer {
 
         currentNotificationId?.let { NotificationManagerCompat.from(context).cancel(it) }
         currentNotificationId = null
+        currentKey = null
+    }
+
+    /**
+     * 엣지 PC가 FCM으로 "위반 해제"를 보고했을 때 [AlertFcmService]에서 호출한다
+     * (기획안 5.6절 — 해제는 사람의 확인이 아니라 엣지 PC의 재감지로만 이뤄져야 함).
+     * 지금 울리고 있는 경보의 [currentKey]와 [key]가 일치할 때만 [stop]을 호출한다 —
+     * 안 그러면 다른 위반이 마침 울리는 도중에 방금 해제된 이전 위반 신호 때문에
+     * 엉뚱하게 꺼져버릴 수 있다.
+     */
+    fun resolveIfMatches(context: Context, key: String) {
+        if (key.isNotEmpty() && key == currentKey) {
+            stop(context)
+        }
     }
 
     /** 지금 재생 중인 경고음(MediaPlayer)이 있으면 멈추고 리소스를 해제한다. */
