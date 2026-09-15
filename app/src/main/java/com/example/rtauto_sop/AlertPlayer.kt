@@ -123,30 +123,41 @@ object AlertPlayer {
         // 소프트웨어 배율은 항상 100%로 두고(1f), 실제 크기는 기기의 "알람" 스트림 볼륨이 결정한다.
         // MainActivity의 슬라이더가 AudioManager.STREAM_ALARM을 직접 조절하므로,
         // 재생 도중 슬라이더를 움직이면 이 소리도 그 자리에서 바로 커지고 작아진다.
-        val player = MediaPlayer().apply {
-            setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            setDataSource(context, alarmUri)
-            setVolume(1f, 1f)
-            setOnCompletionListener {
-                if (currentPlayer === it) currentPlayer = null
-                it.release()
-                onFinished()
+        try {
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(context, alarmUri)
+                setVolume(1f, 1f)
+                setOnPreparedListener { it.start() }
+                setOnCompletionListener {
+                    if (currentPlayer === it) currentPlayer = null
+                    it.release()
+                    onFinished()
+                }
+                setOnErrorListener { mp, _, _ ->
+                    if (currentPlayer === mp) currentPlayer = null
+                    mp.release()
+                    onFinished()
+                    true
+                }
+                // prepare()는 완료될 때까지 호출 스레드를 막는 블로킹 호출이라, 트리거 경로가
+                // 메인 스레드(테스트 버튼의 클릭 리스너)를 타는 이상 여기서 쓰면 오디오 백엔드가
+                // 느릴 때 그대로 ANR로 이어진다 — 반드시 prepareAsync()로 비동기 준비하고
+                // setOnPreparedListener에서 재생을 시작한다.
+                prepareAsync()
             }
-            setOnErrorListener { mp, _, _ ->
-                if (currentPlayer === mp) currentPlayer = null
-                mp.release()
-                onFinished()
-                true
-            }
-            prepare()
+            currentPlayer = player
+        } catch (e: Exception) {
+            // 경보음 URI가 깨져 있거나(기기에 기본 알람음이 없는 경우 등) setDataSource/prepareAsync가
+            // 던지는 예외를 여기서 잡지 않으면 앱 전체가 크래시로 죽는다 — 경보음만 건너뛰고 TTS는 계속한다.
+            currentPlayer = null
+            onFinished()
         }
-        currentPlayer = player
-        player.start()
     }
 
     private fun speak(context: Context, body: String) {
