@@ -109,6 +109,13 @@ backgrounded, which breaks the custom sound/vibration/TTS sequence. Expected `da
    the "알람 종료" action; `playAlarmSound()` also cancels any previous alert's still-pending repeat
    schedule before starting its own, so two overlapping alerts don't end up with two independent
    10-second loops both firing.
+   While TTS is actually speaking, `AlertPlayer` ducks the alarm sound to 25%
+   (`DUCKED_ALARM_VOLUME`, via `currentPlayer?.setVolume()` on the TTS `UtteranceProgressListener`'s
+   `onStart`) and restores it to 100% (`FULL_ALARM_VOLUME`) on `onDone`/`onError` — both alarm sound
+   and TTS share the same `STREAM_ALARM`, so without ducking the sound and the spoken words compete and
+   the words are hard to make out. The `MediaPlayer.setVolume()` calls are wrapped in `runCatching`
+   (logged as a `Log.w` on failure, never crashes) since the alarm sound may have already finished/been
+   released by the time a duck/restore fires.
    `playAlarmSound()` uses `MediaPlayer.prepareAsync()` + `setOnPreparedListener`, never the blocking
    `prepare()` — the trigger path can run on the UI thread (the 테스트 경보 재생 button calls
    `AlertPlayer.trigger()` directly from its click listener), so a synchronous `prepare()` there risks
@@ -225,12 +232,15 @@ used, it wasn't kept in the repo). The splash (`introOverlay` in `activity_main.
 Ltd." text over ~2.3s, layered *on top of* (not instead of) the androidx `core-splashscreen` system
 splash — the latter only covers the instant before `MainActivity` inflates. `introOverlay` only covers
 the content area, not the action bar (a separate window-decor element drawn above the content view),
-so `runIntroAnimation()` explicitly calls `supportActionBar?.hide()` at the start and `?.show()` in the
-fade-out's `withEndAction` — without this the redesigned action bar (bell · "RT AUTOMATION" · tab name
-· dark-mode icon, see DESIGN.md) visibly shows through above the splash for its whole ~2.3s. Verified by
-temporarily stretching the 1900ms hold to ~15s on an emulator build to actually see the hidden-action-
-bar state — worth remembering if this needs re-checking, since the real duration is too short to
-reliably catch with manual screenshots.
+so `runIntroAnimation()` explicitly calls `supportActionBar?.hide()` at the start — without this the
+redesigned action bar (bell · "RT AUTOMATION" · tab name · dark-mode icon, see DESIGN.md) visibly shows
+through above the splash for its whole ~2.3s. `?.show()` is called right as the overlay's 400ms
+fade-out *starts* (not in its `withEndAction`) so `ActionBar.show()`'s own built-in appear animation
+runs concurrently with the overlay fading to transparent — calling it after the fade finished instead
+looked like two disconnected steps (splash fully gone, then the action bar separately popped in), which
+was a review comment. Verified by temporarily stretching the 1900ms hold to ~15s on an emulator build
+to actually see the hidden-action-bar state — worth remembering if this needs re-checking, since the
+real duration is too short to reliably catch with manual screenshots.
 
 ## Known gaps vs. the proposal (5.6 절)
 
