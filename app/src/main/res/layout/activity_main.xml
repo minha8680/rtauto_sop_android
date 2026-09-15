@@ -351,10 +351,10 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
-                    <!-- 날짜 선택 캘린더 — 날짜를 누르면 그날 이력만 아래에 나온다.
-                         상단 라벨을 누르면 연도 · 월을 빠르게 고를 수 있는 선택기가 뜬다
-                         (기본 CalendarView의 "2026년 9월" 머리글 자체는 탭을 가로챌 수
-                         없어서, 같은 역할을 하는 우리 라벨을 따로 둔다). -->
+                    <!-- 날짜 선택 캘린더 — 시안(캔버스)의 커스텀 월 그리드를 그대로 옮겼다.
+                         날짜를 누르면 그날 이력만 아래에 나온다. 양옆 화살표로 한 달씩
+                         넘기거나, 가운데 월 라벨을 눌러 연도·월을 한번에 빠르게 고를 수
+                         있는 선택기(MaterialDatePicker, 연도 그리드 내장)를 띄운다. -->
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -367,54 +367,75 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:orientation="vertical">
+                            android:orientation="vertical"
+                            android:padding="14dp">
 
                             <LinearLayout
-                                android:id="@+id/calendarHeaderRow"
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:background="?attr/selectableItemBackground"
-                                android:clickable="true"
-                                android:focusable="true"
                                 android:gravity="center_vertical"
-                                android:orientation="horizontal"
-                                android:padding="16dp">
+                                android:paddingBottom="12dp">
+
+                                <ImageButton
+                                    android:id="@+id/calendarPrevMonth"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:contentDescription="이전 달"
+                                    android:src="@drawable/ic_chevron_left"
+                                    app:tint="@color/text_secondary" />
 
                                 <TextView
                                     android:id="@+id/calendarMonthLabel"
                                     android:layout_width="0dp"
                                     android:layout_height="wrap_content"
                                     android:layout_weight="1"
+                                    android:background="?attr/selectableItemBackground"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:gravity="center"
+                                    android:paddingVertical="6dp"
                                     android:text="2026년 9월"
-                                    android:textSize="16sp"
+                                    android:textSize="15sp"
                                     android:textStyle="bold" />
 
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginEnd="4dp"
-                                    android:text="연도·월 선택"
-                                    android:textColor="@color/brand_red"
-                                    android:textSize="12sp" />
-
-                                <ImageView
-                                    android:layout_width="18dp"
-                                    android:layout_height="18dp"
-                                    android:rotation="90"
+                                <ImageButton
+                                    android:id="@+id/calendarNextMonth"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:background="?attr/selectableItemBackgroundBorderless"
+                                    android:contentDescription="다음 달"
                                     android:src="@drawable/ic_chevron_right"
-                                    android:contentDescription="@null"
-                                    app:tint="@color/brand_red" />
+                                    app:tint="@color/text_secondary" />
                             </LinearLayout>
 
-                            <View
+                            <LinearLayout
                                 android:layout_width="match_parent"
-                                android:layout_height="1dp"
-                                android:background="@color/outline" />
+                                android:layout_height="wrap_content"
+                                android:orientation="horizontal">
 
-                            <CalendarView
-                                android:id="@+id/eventCalendarView"
+                                <TextView
+                                    style="@style/CalendarWeekdayLabel"
+                                    android:text="일"
+                                    android:textColor="@color/critical_fg" />
+
+                                <TextView style="@style/CalendarWeekdayLabel" android:text="월" />
+                                <TextView style="@style/CalendarWeekdayLabel" android:text="화" />
+                                <TextView style="@style/CalendarWeekdayLabel" android:text="수" />
+                                <TextView style="@style/CalendarWeekdayLabel" android:text="목" />
+                                <TextView style="@style/CalendarWeekdayLabel" android:text="금" />
+
+                                <TextView
+                                    style="@style/CalendarWeekdayLabel"
+                                    android:text="토"
+                                    android:textColor="@color/normal_fg" />
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/calendarGrid"
                                 android:layout_width="match_parent"
-                                android:layout_height="wrap_content" />
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical" />
                         </LinearLayout>
                     </com.google.android.material.card.MaterialCardView>
 

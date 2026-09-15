@@ -65,6 +65,20 @@ object EventStore {
         return readAll(context).filter { it.id in dayStart until dayEnd }
     }
 
+    /** 캘린더 그리드용 — [year]/[month](Calendar.MONTH 기준, 0=1월)에 이벤트가
+     *  하나라도 있는 날짜(day-of-month)의 집합. 점 표시 여부를 정할 때 쓴다. */
+    fun datesWithEventsInMonth(context: Context, year: Int, month: Int): Set<Int> {
+        val cal = Calendar.getInstance()
+        val days = mutableSetOf<Int>()
+        readAll(context).forEach { event ->
+            cal.timeInMillis = event.id
+            if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                days.add(cal.get(Calendar.DAY_OF_MONTH))
+            }
+        }
+        return days
+    }
+
     private fun readAll(context: Context): List<AlertEvent> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString(KEY_EVENTS, null) ?: return emptyList()

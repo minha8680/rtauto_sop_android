@@ -11,11 +11,12 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.animation.DecelerateInterpolator
-import android.widget.CalendarView
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -325,33 +326,43 @@ class MainActivity : AppCompatActivity() {
     // ③ 오늘 이벤트 목록 — 캘린더에서 날짜를 고르면 그날 이력만 보여준다.
     // ---------------------------------------------------------------------
 
-    private fun setupEventCalendar() {
-        val calendarView = findViewById<CalendarView>(R.id.eventCalendarView)
-        calendarView.date = selectedDateMillis
-        calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
-            selectedDateMillis = Calendar.getInstance().apply {
-                set(year, month, dayOfMonth, 0, 0, 0)
-            }.timeInMillis
-            updateCalendarMonthLabel()
-            refreshEventList()
-        }
-        updateCalendarMonthLabel()
+    // 시안(캔버스)의 커스텀 월 그리드 — "화면에 지금 펼쳐 놓은 달"은 선택한 날짜와
+    // 별개로 둔다 (화살표로 달만 넘기고 아직 날짜를 안 골랐을 수도 있으므로).
+    private lateinit var calendarGrid: LinearLayout
+    private lateinit var calendarMonthLabel: TextView
+    private var displayedMonth: Calendar = Calendar.getInstance()
 
-        // CalendarView 자체의 "<  2026년 9월  >" 머리글은 한 달씩만 넘어가고 탭도
-        // 못 받아서, 연도를 훌쩍 건너뛰고 싶을 때 쓰라고 별도 라벨을 두고
-        // MaterialDatePicker(연도 그리드 내장)를 띄운다.
-        findViewById<View>(R.id.calendarHeaderRow).setOnClickListener {
-            openYearMonthPicker(calendarView)
+    private fun setupEventCalendar() {
+        calendarGrid = findViewById(R.id.calendarGrid)
+        calendarMonthLabel = findViewById(R.id.calendarMonthLabel)
+        displayedMonth = Calendar.getInstance().apply {
+            timeInMillis = selectedDateMillis
+            set(Calendar.DAY_OF_MONTH, 1)
         }
+
+        findViewById<View>(R.id.calendarPrevMonth).setOnClickListener {
+            displayedMonth.add(Calendar.MONTH, -1)
+            renderCalendarGrid()
+        }
+        findViewById<View>(R.id.calendarNextMonth).setOnClickListener {
+            displayedMonth.add(Calendar.MONTH, 1)
+            renderCalendarGrid()
+        }
+        // 화살표는 한 달씩, 가운데 월 라벨은 연도를 훌쩍 건너뛰고 싶을 때 쓰라고
+        // MaterialDatePicker(연도 그리드 내장)를 띄운다 — 두 가지 방법을 다 열어둔다.
+        calendarMonthLabel.setOnClickListener {
+            openYearMonthPicker()
+        }
+
+        renderCalendarGrid()
     }
 
-    private fun openYearMonthPicker(calendarView: CalendarView) {
-        val localNow = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+    private fun openYearMonthPicker() {
         // MaterialDatePicker는 선택값을 "UTC 자정" 기준 millis로 다룬다.
         // 로컬 타임존 그대로 넘기면 기기 시간대에 따라 하루 밀릴 수 있어 변환해준다.
         val utcSelection = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
             clear()
-            set(localNow.get(Calendar.YEAR), localNow.get(Calendar.MONTH), localNow.get(Calendar.DAY_OF_MONTH))
+            set(displayedMonth.get(Calendar.YEAR), displayedMonth.get(Calendar.MONTH), 1)
         }.timeInMillis
 
         val picker = MaterialDatePicker.Builder.datePicker()
@@ -369,16 +380,104 @@ class MainActivity : AppCompatActivity() {
                 set(Calendar.MILLISECOND, 0)
             }
             selectedDateMillis = localCal.timeInMillis
-            calendarView.date = selectedDateMillis
-            updateCalendarMonthLabel()
+            displayedMonth = Calendar.getInstance().apply {
+                timeInMillis = selectedDateMillis
+                set(Calendar.DAY_OF_MONTH, 1)
+            }
+            renderCalendarGrid()
             refreshEventList()
         }
         picker.show(supportFragmentManager, "event_date_picker")
     }
 
-    private fun updateCalendarMonthLabel() {
-        val formatter = SimpleDateFormat("yyyy년 M월", Locale.KOREA)
-        findViewById<TextView>(R.id.calendarMonthLabel).text = formatter.format(Date(selectedDateMillis))
+    /** 현재 displayedMonth 기준으로 월 라벨 + 요일 그리드를 통째로 다시 그린다. */
+    private fun renderCalendarGrid() {
+        val labelFormatter = SimpleDateFormat("yyyy년 M월", Locale.KOREA)
+        calendarMonthLabel.text = labelFormatter.format(displayedMonth.time)
+
+        val density = resources.displayMetrics.density
+        fun dp(value: Int) = (value * density).toInt()
+
+        val year = displayedMonth.get(Calendar.YEAR)
+        val month = displayedMonth.get(Calendar.MONTH)
+        val daysInMonth = displayedMonth.getActualMaximum(Calendar.DAY_OF_MONTH)
+        // DAY_OF_WEEK: 1=일 ~ 7=토 — 그리드 첫 칸(일요일 열)이 몇 번째부터 시작하는지 계산.
+        val firstWeekday = Calendar.getInstance().apply {
+            set(year, month, 1)
+        }.get(Calendar.DAY_OF_WEEK)
+
+        val eventDays = EventStore.datesWithEventsInMonth(this, year, month)
+
+        val today = Calendar.getInstance()
+        val isTodayMonth = today.get(Calendar.YEAR) == year && today.get(Calendar.MONTH) == month
+        val selectedCal = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val isSelectedMonth = selectedCal.get(Calendar.YEAR) == year && selectedCal.get(Calendar.MONTH) == month
+
+        calendarGrid.removeAllViews()
+        var day = 1 - (firstWeekday - 1)
+        while (day <= daysInMonth) {
+            val weekRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(4) }
+            }
+            for (col in 0 until 7) {
+                val dayNumber = day
+                val cellWrapper = FrameLayout(this).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, dp(38), 1f)
+                }
+                if (dayNumber in 1..daysInMonth) {
+                    val isToday = isTodayMonth && today.get(Calendar.DAY_OF_MONTH) == dayNumber
+                    val isSelected = isSelectedMonth && selectedCal.get(Calendar.DAY_OF_MONTH) == dayNumber
+                    val hasEvent = eventDays.contains(dayNumber)
+
+                    val cell = TextView(this).apply {
+                        text = dayNumber.toString()
+                        textSize = 12.5f
+                        gravity = Gravity.CENTER
+                        layoutParams = FrameLayout.LayoutParams(dp(30), dp(30), Gravity.CENTER)
+                        when {
+                            isToday -> {
+                                background = ContextCompat.getDrawable(context, R.drawable.bg_day_today)
+                                setTextColor(getColorRes(R.color.white))
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                            }
+                            isSelected -> {
+                                background = ContextCompat.getDrawable(context, R.drawable.bg_day_selected)
+                                setTextColor(getColorRes(R.color.brand_red))
+                                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                            }
+                        }
+                        setOnClickListener {
+                            selectedDateMillis = Calendar.getInstance().apply {
+                                set(year, month, dayNumber, 0, 0, 0)
+                                set(Calendar.MILLISECOND, 0)
+                            }.timeInMillis
+                            renderCalendarGrid()
+                            refreshEventList()
+                        }
+                    }
+                    cellWrapper.addView(cell)
+
+                    if (hasEvent) {
+                        val dot = View(this).apply {
+                            layoutParams = FrameLayout.LayoutParams(dp(4), dp(4), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply {
+                                bottomMargin = dp(3)
+                            }
+                            // 점은 원(오늘/선택) 바깥 흰 여백에 찍히므로, 오늘 칸이어도
+                            // 항상 브랜드 레드로 — 흰 원 위에 흰 점이 되어 안 보이는 걸 방지.
+                            background = ContextCompat.getDrawable(context, R.drawable.bg_dot)
+                            backgroundTintList = android.content.res.ColorStateList.valueOf(getColorRes(R.color.brand_red))
+                        }
+                        cellWrapper.addView(dot)
+                    }
+                }
+                weekRow.addView(cellWrapper)
+                day++
+            }
+            calendarGrid.addView(weekRow)
+        }
     }
 
     private fun refreshEventList() {
