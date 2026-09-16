@@ -41,6 +41,17 @@ object AlertPlayer {
     private const val TTS_REPEAT_INTERVAL_MS = 10_000L
     private const val FULL_ALARM_VOLUME = 1f
 
+    // 알림을 앱 안에서 하나로 묶어(그룹) 안드로이드가 "N건" 요약으로 쌓아 보여주게 한다 —
+    // 위반이 여러 건 겹쳐도(예: 2인1조 위반 중 헬멧 미착용까지) 최신 것만 보이는 게 아니라
+    // 알림 개수만큼 쌓이게 해달라는 요청(2026-09-16, 실사용 중 발견)에 대응.
+    private const val ALERT_GROUP_KEY = "com.example.rtauto_sop.ALERT_GROUP"
+    private const val SUMMARY_NOTIFICATION_ID = 999_999_999   // 개별 경보 id(currentTimeMillis 기반)와 안 겹치는 고정값
+    // 아직 취소 안 된 알림 id들 — 요약 문구의 "N건" 근거. 한계: 관리자가 개별 알림을 안드로이드
+    // 알림창에서 직접 스와이프로 지우거나 탭해서 지우면(setAutoCancel(true)) 이 목록은 그
+    // 사실을 모른 채 계속 들고 있어서, 요약 건수가 실제(트레이에 남은 것)보다 많게 어긋날 수
+    // 있다 — 삭제/탭 콜백까지 잡으려면 BroadcastReceiver가 필요해 지금은 범위 밖으로 둠.
+    private val activeNotificationIds = mutableListOf<Int>()
+
     // TTS가 말하는 동안 경고음을 이 크기까지 낮춘다(덕킹) — 완전히 죽이지는 않아서
     // "아직 경보가 울리고 있다"는 감각은 남기되, 음성 문구가 또렷하게 들리게 한다.
     private const val DUCKED_ALARM_VOLUME = 0.25f
@@ -64,8 +75,17 @@ object AlertPlayer {
     // 재생하게 한다. 앱이 백그라운드/종료 상태면 null이라 그냥 무시된다.
     private var uiListener: (() -> Unit)? = null
 
+    // 위와 별개로, 엣지 PC가 위반 "해제"(kind=resolved)를 보고했을 때 등록되는 콜백 —
+    // 새 경보와 달리 탭을 강제로 옮기지는 않고, 지금 보고 있는 화면(경보상세 배너, 오늘
+    // 이벤트의 "자동 해제" 라벨 등)만 최신 상태로 새로고침한다.
+    private var uiResolvedListener: (() -> Unit)? = null
+
     fun setUiListener(listener: (() -> Unit)?) {
         uiListener = listener
+    }
+
+    fun setUiResolvedListener(listener: (() -> Unit)?) {
+        uiResolvedListener = listener
     }
 
     fun ensureChannel(context: Context) {
@@ -143,6 +163,8 @@ object AlertPlayer {
     }
 
     private fun showNotification(context: Context, title: String, body: String) {
+        val notificationId = System.currentTimeMillis().toInt()
+
         // getLaunchIntentForPackage()가 아니라 명시적으로 MainActivity를 지정하고 extra를
         // 실어 보낸다 — 그래야 MainActivity.onCreate()/onNewIntent()가 "알림을 탭해서
         // 들어왔다"는 걸 알고 홈 대신 경보상세 탭으로 바로 연다.
@@ -150,8 +172,11 @@ object AlertPlayer {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_OPEN_ALERT_DETAIL, true)
         }
+        // requestCode를 매번 0으로 주면 안드로이드가 "같은 PendingIntent"로 보고 최신 알림의
+        // extras로 덮어써버린다(내용은 어차피 다 같은 extra라 지금은 체감 차이가 없지만,
+        // 여러 알림이 각자 독립된 tap 대상을 갖게 notificationId를 requestCode로 준다).
         val pendingIntent = PendingIntent.getActivity(
-            context, 0, openIntent,
+            context, notificationId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val notification = NotificationCompat.Builder(context, context.getString(R.string.alert_channel_id))
@@ -162,11 +187,40 @@ object AlertPlayer {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            // 같은 그룹으로 묶어서, 위반이 여러 건 쌓이면 안드로이드가 "N건"으로 정리해
+            // 보여주게 한다 — 최신 것만 남고 이전 것들이 안 보이는 문제(2026-09-16 발견) 대응.
+            .setGroup(ALERT_GROUP_KEY)
             .build()
 
-        val notificationId = System.currentTimeMillis().toInt()
         currentNotificationId = notificationId
+        activeNotificationIds.add(notificationId)
         NotificationManagerCompat.from(context).notify(notificationId, notification)
+        updateGroupSummary(context)
+    }
+
+    /**
+     * 그룹 요약 알림 — 지금 확인 안 된(취소 안 된) SOP 경보가 몇 건인지 보여준다. 개별
+     * 경보 알림들과 같은 [ALERT_GROUP_KEY]로 묶여 있어서, 안드로이드가 여러 건을 접어
+     * 보여줄 때 이 요약이 맨 위에 뜬다. 활성 알림이 하나도 없으면 요약 자체를 지운다.
+     */
+    private fun updateGroupSummary(context: Context) {
+        if (activeNotificationIds.isEmpty()) {
+            NotificationManagerCompat.from(context).cancel(SUMMARY_NOTIFICATION_ID)
+            return
+        }
+        val text = "확인 안 된 위반 ${activeNotificationIds.size}건"
+        val summary = NotificationCompat.Builder(context, context.getString(R.string.alert_channel_id))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("RT SOP 알림")
+            .setContentText(text)
+            .setStyle(NotificationCompat.InboxStyle().setSummaryText(text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setGroup(ALERT_GROUP_KEY)
+            .setGroupSummary(true)
+            .setAutoCancel(false)
+            .build()
+        NotificationManagerCompat.from(context).notify(SUMMARY_NOTIFICATION_ID, summary)
     }
 
     private fun vibrate(context: Context) {
@@ -268,7 +322,11 @@ object AlertPlayer {
 
         cancelVibration(context)
 
-        currentNotificationId?.let { NotificationManagerCompat.from(context).cancel(it) }
+        currentNotificationId?.let {
+            NotificationManagerCompat.from(context).cancel(it)
+            activeNotificationIds.remove(it)
+            updateGroupSummary(context)
+        }
         currentNotificationId = null
         currentKey = null
     }
@@ -278,12 +336,31 @@ object AlertPlayer {
      * (기획안 5.6절 — 해제는 사람의 확인이 아니라 엣지 PC의 재감지로만 이뤄져야 함).
      * 지금 울리고 있는 경보의 [currentKey]와 [key]가 일치할 때만 [stop]을 호출한다 —
      * 안 그러면 다른 위반이 마침 울리는 도중에 방금 해제된 이전 위반 신호 때문에
-     * 엉뚱하게 꺼져버릴 수 있다.
+     * 엉뚱하게 꺼져버릴 수 있다. key가 안 맞아 알람은 안 멈추더라도, 호출자
+     * (AlertFcmService)가 이미 EventStore를 갱신한 뒤이므로 화면 새로고침 콜백은
+     * 항상 알린다 — 예: 이미 "확인"으로 종료된 경보의 해제 신호가 뒤늦게 와도, 오늘
+     * 이벤트 목록의 상태 라벨("자동 해제")은 갱신돼야 한다.
      */
     fun resolveIfMatches(context: Context, key: String) {
         if (key.isNotEmpty() && key == currentKey) {
             stop(context)
+            // 지금 울리던 알람을 껐는데 아직 확인 안 된 다른 위반이 남아있으면 그걸 위해
+            // 알람을 새로 켠다 — 안 그러면 카드는 다음 위반으로 조용히 바뀌는데 경고음·
+            // 진동·TTS는 다시 안 울리는 문제가 있었다(2026-09-16 사용자 피드백: "헬멧
+            // 미착용이 자동해제되고 2인1조가 다음 경보로 나왔는데 TTS가 안 들렸다").
+            promoteNextIfAny(context)
         }
+        Handler(Looper.getMainLooper()).post { uiResolvedListener?.invoke() }
+    }
+
+    /**
+     * 알람을 하나 껐을 때(수동 확인이든 자동 해제든) 아직 확인 안 된 다른 위반이 있으면
+     * 그걸 위해 [trigger]를 다시 호출해 경고음·진동·TTS·알림을 새로 켠다. 없으면 아무 일도
+     * 안 한다. [resolveIfMatches]와 MainActivity의 "확인" 버튼 양쪽에서 호출한다.
+     */
+    fun promoteNextIfAny(context: Context) {
+        val next = EventStore.latestUnacknowledged(context) ?: return
+        trigger(context, next.title, next.body, next.key)
     }
 
     /** 지금 재생 중인 경고음(MediaPlayer)이 있으면 멈추고 리소스를 해제한다. */

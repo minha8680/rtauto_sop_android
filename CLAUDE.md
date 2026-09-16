@@ -159,6 +159,33 @@ comment and "해제 조건" below.
    list ("자동 해제" vs "확인 완료") even though both set `acknowledged = true` under the hood (the
    alert-detail banner's `latestUnacknowledged()` query doesn't need to know which).
 
+   `resolveIfMatches` (and the ackButton's manual-confirm handler) also call
+   `AlertPlayer.promoteNextIfAny(context)` right after `stop()` — if `EventStore.latestUnacknowledged()`
+   still returns something (a second violation that was already active, just buried behind the one
+   that just cleared — see "multiple simultaneously-active violations" below), it re-triggers the
+   full alarm (`trigger()`: sound, vibration, TTS, notification, tab switch) for it. Without this
+   (2026-09-16, found in real testing: a crew violation was still open when a helmet violation
+   confirmed and then auto-resolved), the card would silently swap to show the next violation with
+   no sound/TTS at all, since `refreshAlertDetail()`/`refreshEventList()` only repaint the UI — they
+   never call `trigger()`. Don't add a similar "if the event changed, ring" check inside
+   `refreshAlertDetail()` itself — that path also runs from a brand-new alert's own `onNewAlertArrived()`
+   chain, and would double-trigger the sound/TTS for it; `promoteNextIfAny` is deliberately only
+   called from the two well-defined "an alarm was just stopped" call sites instead.
+
+   `resolveIfMatches` also invokes `AlertPlayer`'s second UI callback, `uiResolvedListener` (set by
+   `MainActivity.onStart()`/cleared in `onStop()`, same lifecycle as the existing `uiListener` used
+   for new alerts) — **unconditionally**, regardless of whether `key` matched `currentKey`, because
+   the caller (`AlertFcmService`) always calls `EventStore.resolveByKey()` first, so *something* in
+   the event history may have changed even when this specific alarm didn't. `MainActivity`'s handler
+   (`onAlertResolvedFromEdge()`) just calls `refreshAlertDetail()` + `refreshEventList()` — unlike
+   `onNewAlertArrived()` it does **not** switch tabs, since a resolve shouldn't yank the admin off
+   whatever screen they're looking at. This existed as a real gap before 2026-09-16: the alarm would
+   go silent on a `resolved` message, but the alert-detail banner stayed showing the now-cleared
+   violation until the user manually left and came back to the tab (which happens to call
+   `refreshAlertDetail()` again) — `refreshAlertDetail()` already starts/stops the shake+vibration
+   impact loop based on whether `latestUnacknowledged()` returns anything, so no separate handling
+   was needed for that once the refresh itself was wired up.
+
 **Local persistence** (SharedPreferences, all under one file `rtauto_sop_prefs`, no server-side
 history in this MVP):
 - `TokenStore` — this device's current FCM registration token (shown/copied on the Home tab so an
@@ -205,7 +232,69 @@ as the source of truth for how each screen's logic is wired:
   brand red regardless of the alert's severity (see DESIGN.md for why). The alarm can also stop on
   its own without this button — see "Resolve path" above — in which case this banner disappears the
   next time `refreshAlertDetail()` runs (`latestUnacknowledged()` no longer returns it) with no extra
-  code needed here. While an alert is active, `MainActivity.startAlertImpactLoop()` re-triggers
+  code needed here — **and does so live**, not just on the next tab switch: `AlertFcmService`'s
+  `resolved` branch drives `AlertPlayer.resolveIfMatches()`, which posts to `uiResolvedListener`
+  (a second callback alongside the existing `uiListener`, same `onStart`/`onStop` lifecycle)
+  unconditionally — even when the key doesn't match anything currently alarming — so
+  `MainActivity.onAlertResolvedFromEdge()` calls `refreshAlertDetail()` + `refreshEventList()`
+  whenever a resolved message arrives while the app is foregrounded, regardless of which tab is
+  showing (unlike `onNewAlertArrived()`, it never switches tabs — a resolve shouldn't yank the
+  admin off whatever they're looking at). The empty state also calls
+  `refreshAutoResolvedSummary()` (2026-09-16) — the answer to "auto-resolve is a safety risk if
+  it's silent, but re-alerting on every resolve is the alarm-fatigue problem all over again":
+  the alarm still stops silently on the edge PC's re-detection, but the empty-state screen shows
+  a tappable `autoResolvedSummary` pill, `EventStore.autoResolvedCountToday()` (today's
+  `autoResolved` count), reading data that's already on-device — no new push, no fatigue, but
+  nothing is invisible to an admin who opens the app. Tapping it jumps to 오늘 이벤트.
+
+  **Multiple simultaneously-active violations (2026-09-16, found in real testing — a crew
+  violation was still open when a helmet violation confirmed on top of it)**: the card only ever
+  shows `EventStore.latestUnacknowledged()` (one event), so a second violation confirming just
+  silently replaces what's on screen — the first one isn't resolved, just no longer visible.
+  `EventStore.allUnacknowledged()` returns all of them (newest first, same ordering/filter as
+  `latestUnacknowledged()` so `.firstOrNull()` on it is always the same event); `refreshAlertDetail()`
+  passes everything after the first into `refreshOtherActiveAlerts()`, which shows a "다른 활성
+  위반 N건 ▼" toggle (`otherAlertsToggle`/`otherAlertsContainer` in the layout) below the card.
+  Expanding it renders each with the same `buildEventRow()` used in 오늘 이벤트 — deliberately
+  read-only here (no per-row "확인"); the only ways anything gets acknowledged are the main card's
+  button (the top event) or the edge PC's own `resolved` message for that specific `key` (matches
+  regardless of which event is "on top" — see Resolve path above), so an older buried violation
+  still clears itself correctly once its own condition resolves. `otherAlertsExpanded` (an Activity
+  field, not persisted) keeps the expand state across the repeated `refreshAlertDetail()` calls
+  from `onResume`/`onAlertResolvedFromEdge`/tab reselection so it doesn't re-collapse on every
+  refresh.
+
+  **Severity-first priority (2026-09-16, explicit design intent from the proposal's
+  critical/major/minor grading — implemented same day)**: `allUnacknowledged()` sorts by
+  `compareByDescending { levelRank(it.level) }.thenByDescending { it.id }` (a private
+  `EventStore.levelRank()`: `"중대"`=3, `"주의"`=2, else=1) instead of plain recency, and
+  `latestUnacknowledged()` is now just `allUnacknowledged().firstOrNull()` — so a `"중대"` (crew/
+  zone) violation always outranks a later-confirmed `"주의"` (helmet, per `FCM_LEVEL_BY_RULE` on
+  the edge PC) for the main card, the "다른 활성 위반" list, and `AlertPlayer.promoteNextIfAny()`
+  (which also calls `latestUnacknowledged()`, so the alarm resumes for whichever is now most
+  urgent, not just whatever's newest). `readAll()`'s own stored order is untouched (still
+  newest-first, insertion order) — only this filtered/derived view re-sorts, since 오늘 이벤트/
+  the calendar want chronological order, not severity order. Adding a new level string needs a
+  matching case in `levelRank()` here alongside `levelBgRes()`/`levelColorRes()` in `MainActivity`.
+
+  **Notification tray stacking (2026-09-16, same finding)**: `AlertPlayer.showNotification()`
+  already gave each alert its own `notificationId` (`System.currentTimeMillis().toInt()`) and never
+  cancelled previous ones, so multiple notifications were already technically distinct — the
+  visible problem was no grouping, so the tray/OEM skin had no reason to present them as a
+  meaningful stack. Fixed by giving every alert notification `setGroup(ALERT_GROUP_KEY)` plus a
+  separate group-summary notification (`SUMMARY_NOTIFICATION_ID`, `setGroupSummary(true)`) that
+  `updateGroupSummary()` keeps in sync with `activeNotificationIds.size` ("확인 안 된 위반 N건") —
+  posted/updated on every `showNotification()` and after `stop()` removes the current one. Also
+  fixed in passing: the `PendingIntent.getActivity()` request code was hardcoded `0` for every
+  alert, which under `FLAG_UPDATE_CURRENT` makes Android treat them as *the same* PendingIntent and
+  overwrite its extras — harmless today (every alert's extra is the identical `open_alert_detail =
+  true`) but wrong in principle, so the request code is now `notificationId`. Known gap:
+  `activeNotificationIds` only shrinks via `AlertPlayer.stop()` — if the admin swipes/taps an
+  individual notification away from the tray directly, this list doesn't find out and the summary
+  count can drift high; fixing that needs a dismiss/delete `PendingIntent` (`BroadcastReceiver`),
+  not done yet.
+
+  While an alert is active, `MainActivity.startAlertImpactLoop()` re-triggers
   `playAlertImpact()` on the `alertDetailCard` every 4s (`ALERT_IMPACT_INTERVAL_MS`) via a
   `Handler(Looper.getMainLooper())` — a damped shake (`DangerShakeInterpolator`) + scale pulse on the
   card, plus a punchier waveform vibration (gated on `AppSettings.isVibrationEnabled`, same rule as

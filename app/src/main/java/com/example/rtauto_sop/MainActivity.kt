@@ -268,11 +268,13 @@ class MainActivity : AppCompatActivity() {
         // 도착한 경보는 여기서 처리하지 않고, 다음 onResume()의 refreshAlertDetail()이
         // 최신 상태를 보여주는 것으로 충분하다(자동 탭 전환·애니메이션은 필요 없음).
         AlertPlayer.setUiListener { onNewAlertArrived() }
+        AlertPlayer.setUiResolvedListener { onAlertResolvedFromEdge() }
     }
 
     override fun onStop() {
         super.onStop()
         AlertPlayer.setUiListener(null)
+        AlertPlayer.setUiResolvedListener(null)
         // 화면이 안 보이는 동안 배경에서 계속 흔들림/진동 연출이 도는 걸 막는다 — 활성 경보가
         // 여전히 있으면 다음 onResume()의 refreshAlertDetail()이 다시 켠다.
         stopAlertImpactLoop()
@@ -285,6 +287,19 @@ class MainActivity : AppCompatActivity() {
      */
     private fun onNewAlertArrived() {
         findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_alert_detail
+    }
+
+    /**
+     * 엣지 PC가 위반 해제(FCM kind="resolved")를 보고했을 때 호출된다 — 알람 자체는
+     * AlertPlayer가 이미 멈췄거나(해당 경보였을 때) 그대로 뒀지만(다른 경보가 울리는
+     * 중이었을 때), 화면은 지금 보고 있는 탭과 무관하게 항상 최신 상태로 새로고침해야
+     * 한다: 경보상세를 보고 있었으면 배너가 사라지고, 오늘 이벤트를 보고 있었으면 방금
+     * 해제된 항목의 상태 배지가 "자동 해제"로 바뀐다. onNewAlertArrived()와 달리 탭을
+     * 강제로 옮기지는 않는다 — 사람이 보던 화면을 그대로 두고 내용만 갱신한다.
+     */
+    private fun onAlertResolvedFromEdge() {
+        refreshAlertDetail()
+        refreshEventList()
     }
 
     // ---------------------------------------------------------------------
@@ -350,8 +365,10 @@ class MainActivity : AppCompatActivity() {
         val bodyText = findViewById<TextView>(R.id.alertBody)
         val emptyText = findViewById<View>(R.id.alertEmptyText)
         val ackButton = findViewById<android.widget.Button>(R.id.acknowledgeButton)
+        val otherToggle = findViewById<LinearLayout>(R.id.otherAlertsToggle)
 
-        val event = EventStore.latestUnacknowledged(this)
+        val unacknowledged = EventStore.allUnacknowledged(this)
+        val event = unacknowledged.firstOrNull()
         if (event == null) {
             // 활성 경보가 없을 때는 배너 자체를 숨긴다 — 굳이 회색 "없음" 바를 보여주지 않는다.
             levelBar.visibility = View.GONE
@@ -361,7 +378,10 @@ class MainActivity : AppCompatActivity() {
             emptyText.visibility = View.VISIBLE
             ackButton.isEnabled = false
             ackButton.alpha = 0.5f
+            otherToggle.visibility = View.GONE
+            findViewById<LinearLayout>(R.id.otherAlertsContainer).visibility = View.GONE
             stopAlertImpactLoop()
+            refreshAutoResolvedSummary()
             return
         }
         // 활성 경보가 있는 동안 카드 흔들림+진동 연출을 반복한다 — 이미 돌고 있으면
@@ -389,9 +409,75 @@ class MainActivity : AppCompatActivity() {
         ackButton.setOnClickListener {
             AlertPlayer.stop(this)
             EventStore.acknowledge(this, event.id)
+            // 이 경보 말고도 아직 확인 안 된 다른 위반이 있으면 그걸 위해 알람을 다시 켠다
+            // (2026-09-16 — resolveIfMatches와 동일한 이유, "확인"으로 지웠을 때도 같아야 함).
+            AlertPlayer.promoteNextIfAny(this)
             Toast.makeText(this, "경보를 종료했습니다", Toast.LENGTH_SHORT).show()
             refreshAlertDetail()
             refreshEventList()
+        }
+
+        refreshOtherActiveAlerts(unacknowledged.drop(1))
+    }
+
+    // 경보상세의 "다른 활성 위반 N건" 펼치기 상태 — refreshAlertDetail()이 자동해제/새 경보로
+    // 계속 다시 불려도(예: 실시간 새로고침) 사용자가 펼쳐본 상태가 매번 접히지 않게 기억한다.
+    private var otherAlertsExpanded = false
+
+    /**
+     * 최신 1건 외에 아직 "확인" 안 된 위반이 더 있으면 "다른 활성 위반 N건 ▼" 토글을 보여준다
+     * — 경보상세 카드가 최신 위반으로 조용히 대체되면서 그 전 위반(예: 2인1조 위반 도중
+     * 헬멧 미착용까지 확정)을 놓치지 않도록 한다(2026-09-16, 실사용 중 발견). 펼치면 각
+     * 항목을 오늘 이벤트와 같은 카드 행(buildEventRow)으로 보여준다 — 여기서 개별 "확인"은
+     * 받지 않는다(동시에 여러 알람을 관리하는 건 범위 밖 — 오늘 이벤트 탭에서 처리).
+     */
+    private fun refreshOtherActiveAlerts(others: List<AlertEvent>) {
+        val toggle = findViewById<LinearLayout>(R.id.otherAlertsToggle)
+        val toggleText = findViewById<TextView>(R.id.otherAlertsToggleText)
+        val chevron = findViewById<View>(R.id.otherAlertsChevron)
+        val container = findViewById<LinearLayout>(R.id.otherAlertsContainer)
+
+        if (others.isEmpty()) {
+            toggle.visibility = View.GONE
+            container.visibility = View.GONE
+            otherAlertsExpanded = false
+            return
+        }
+
+        toggle.visibility = View.VISIBLE
+        toggleText.text = "다른 활성 위반 ${others.size}건"
+        chevron.rotation = if (otherAlertsExpanded) 90f else 0f
+        container.visibility = if (otherAlertsExpanded) View.VISIBLE else View.GONE
+        container.removeAllViews()
+        if (otherAlertsExpanded) {
+            others.forEach { container.addView(buildEventRow(it)) }
+        }
+        toggle.setOnClickListener {
+            otherAlertsExpanded = !otherAlertsExpanded
+            refreshOtherActiveAlerts(others)
+        }
+    }
+
+    /**
+     * 경보상세가 "활성 경보 없음" 빈 화면일 때, 오늘 자동 해제(재감지로 조용히 해제)된
+     * 위반이 있으면 그 건수를 알약(pill) 배지로 보여준다. 경보음은 이미 안 울리지만
+     * ("자동해제=위험" 우려와 "매번 알림=피로" 우려를 동시에 해소하는 지점) 관리자가
+     * 앱을 열면 오늘 뭔가 있었는지 바로 알 수 있게 하려는 것 — 새 알림을 보내는 게
+     * 아니라 이미 기기에 저장된 이력만 세므로 알림 피로를 늘리지 않는다. 눌러서 탭하면
+     * 오늘 이벤트 탭으로 이동해 실제로 어떤 항목들인지 바로 확인할 수 있다.
+     */
+    private fun refreshAutoResolvedSummary() {
+        val summary = findViewById<TextView>(R.id.autoResolvedSummary)
+        val count = EventStore.autoResolvedCountToday(this)
+        if (count <= 0) {
+            summary.visibility = View.GONE
+            summary.setOnClickListener(null)
+            return
+        }
+        summary.visibility = View.VISIBLE
+        summary.text = "오늘 자동 해제된 위반 ${count}건 · 눌러서 보기"
+        summary.setOnClickListener {
+            findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_event_list
         }
     }
 

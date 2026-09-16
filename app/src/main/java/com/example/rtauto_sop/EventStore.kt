@@ -59,9 +59,37 @@ object EventStore {
         return matched
     }
 
-    /** 아직 "확인"을 누르지 않은 것 중 가장 최근 경보. 없으면 null. */
+    /**
+     * 등급 우선순위 — 숫자가 클수록 더 급함. 기획안의 critical/major/minor(중대/주의/일반)
+     * 등급 체계를 그대로 반영: 여러 위반이 동시에 활성 상태여도 **중대가 항상 최우선으로
+     * 떠야 한다**(2026-09-16, 사용자가 명시적으로 지정 — 최신순이 아니라 심각도순).
+     * `levelBgRes()`/`levelColorRes()`(MainActivity)와 같은 등급 문자열 기준을 쓴다 —
+     * 새 등급을 추가하면 여기도 같이 맞출 것.
+     */
+    private fun levelRank(level: String): Int = when (level) {
+        "중대" -> 3
+        "주의" -> 2
+        else -> 1   // "일반" 등 그 외
+    }
+
+    /** 아직 "확인"을 누르지 않은 것 중 지금 가장 먼저 보여줘야 할 경보. 없으면 null. */
     fun latestUnacknowledged(context: Context): AlertEvent? {
-        return readAll(context).firstOrNull { !it.acknowledged }
+        return allUnacknowledged(context).firstOrNull()
+    }
+
+    /**
+     * 아직 "확인" 안 된 것 전부, **등급 우선(중대>주의>일반) → 그 안에서는 최신순**으로 정렬 —
+     * 그래서 `allUnacknowledged().firstOrNull() == latestUnacknowledged()`가 항상 성립한다.
+     * 서로 다른 위반(예: 2인1조 위반 중에 헬멧 미착용까지 겹침)이 동시에 활성 상태일 때
+     * 경보상세 카드가 최신 1건으로 조용히 대체되면서 더 급한 위반을 뒷전으로 밀지 않도록,
+     * "다른 활성 위반 N건 ▼" 펼치기 목록에서도 쓴다(2026-09-16, 실사용 중 발견 + 등급 우선
+     * 정렬 요청). `readAll()` 자체의 저장 순서(최신순)는 오늘 이벤트/캘린더용이라 그대로 두고,
+     * 이 함수에서만 재정렬한다.
+     */
+    fun allUnacknowledged(context: Context): List<AlertEvent> {
+        return readAll(context)
+            .filter { !it.acknowledged }
+            .sortedWith(compareByDescending<AlertEvent> { levelRank(it.level) }.thenByDescending { it.id })
     }
 
     /** 설정 화면의 "오늘 이벤트 전체 삭제"에서 호출한다. */
@@ -72,6 +100,17 @@ object EventStore {
     /** 오늘(자정 이후) 발생한 이벤트만, 최신순. */
     fun todayEvents(context: Context): List<AlertEvent> {
         return eventsForDate(context, System.currentTimeMillis())
+    }
+
+    /**
+     * 오늘 자동 해제(autoResolved)된 이벤트 건수 — 경보상세의 "활성 경보 없음" 빈 화면에서
+     * "오늘 자동 해제된 위반 N건"으로 보여줄 때 쓴다. 경보음은 재감지로 조용히 멈추더라도
+     * (기획안 5.6절), 관리자가 오늘 뭔가 있었는지는 앱을 열어보면 바로 알 수 있어야 한다 —
+     * 새 알림을 또 보내는 게 아니라 이미 기기에 있는 이력을 세기만 하므로 알림 피로를
+     * 늘리지 않는다.
+     */
+    fun autoResolvedCountToday(context: Context): Int {
+        return todayEvents(context).count { it.autoResolved }
     }
 
     /** [dateMillis]가 속한 하루(자정~다음날 자정 전) 동안 발생한 이벤트만, 최신순. */

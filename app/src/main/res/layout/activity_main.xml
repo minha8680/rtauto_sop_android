@@ -309,6 +309,22 @@
                                         android:text="새로운 SOP 위반이 감지되면\n이 화면에 즉시 표시됩니다"
                                         android:textSize="13sp"
                                         android:textColor="@color/text_secondary" />
+
+                                    <TextView
+                                        android:id="@+id/autoResolvedSummary"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_marginTop="14dp"
+                                        android:background="@drawable/bg_pill_success"
+                                        android:clickable="true"
+                                        android:focusable="true"
+                                        android:paddingStart="14dp"
+                                        android:paddingEnd="14dp"
+                                        android:paddingTop="8dp"
+                                        android:paddingBottom="8dp"
+                                        android:textSize="12sp"
+                                        android:textColor="@color/status_ok"
+                                        android:visibility="gone" />
                                 </LinearLayout>
 
                                 <com.google.android.material.button.MaterialButton
@@ -335,6 +351,47 @@
 
                             </LinearLayout>
                         </com.google.android.material.card.MaterialCardView>
+
+                        <!-- 지금 카드 위 알림은 최신 위반 1건뿐이고, 그사이 다른 위반이 확정돼도
+                             조용히 이 카드로 대체된다 — 놓치지 않도록 "다른 활성 위반 N건"을
+                             눌러서 펼쳐볼 수 있게 한다(2026-09-16, 실사용 중 발견). -->
+                        <LinearLayout
+                            android:id="@+id/otherAlertsToggle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:paddingTop="10dp"
+                            android:paddingBottom="10dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:id="@+id/otherAlertsToggleText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="다른 활성 위반 1건"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <ImageView
+                                android:id="@+id/otherAlertsChevron"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_chevron_right"
+                                android:contentDescription="@null"
+                                app:tint="@color/text_secondary" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/otherAlertsContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
             </ScrollView>
