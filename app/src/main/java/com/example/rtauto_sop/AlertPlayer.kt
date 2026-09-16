@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
@@ -142,7 +143,13 @@ object AlertPlayer {
     }
 
     private fun showNotification(context: Context, title: String, body: String) {
-        val openIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        // getLaunchIntentForPackage()가 아니라 명시적으로 MainActivity를 지정하고 extra를
+        // 실어 보낸다 — 그래야 MainActivity.onCreate()/onNewIntent()가 "알림을 탭해서
+        // 들어왔다"는 걸 알고 홈 대신 경보상세 탭으로 바로 연다.
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_OPEN_ALERT_DETAIL, true)
+        }
         val pendingIntent = PendingIntent.getActivity(
             context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
