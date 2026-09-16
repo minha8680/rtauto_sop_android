@@ -36,6 +36,10 @@
             </intent-filter>
         </service>
 
+        <receiver
+            android:name=".NotificationDismissReceiver"
+            android:exported="false" />
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="@string/alert_channel_id" />

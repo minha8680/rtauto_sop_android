@@ -288,11 +288,20 @@ as the source of truth for how each screen's logic is wired:
   fixed in passing: the `PendingIntent.getActivity()` request code was hardcoded `0` for every
   alert, which under `FLAG_UPDATE_CURRENT` makes Android treat them as *the same* PendingIntent and
   overwrite its extras — harmless today (every alert's extra is the identical `open_alert_detail =
-  true`) but wrong in principle, so the request code is now `notificationId`. Known gap:
-  `activeNotificationIds` only shrinks via `AlertPlayer.stop()` — if the admin swipes/taps an
-  individual notification away from the tray directly, this list doesn't find out and the summary
-  count can drift high; fixing that needs a dismiss/delete `PendingIntent` (`BroadcastReceiver`),
-  not done yet.
+  true`) but wrong in principle, so the request code is now `notificationId`.
+
+  **Fixed (2026-09-16)**: `activeNotificationIds` used to only shrink via `AlertPlayer.stop()`, so if
+  the admin swiped/tapped an individual notification away from the tray directly, the summary count
+  would drift high. Each alert notification now also carries a `setDeleteIntent()` pointing at
+  `NotificationDismissReceiver` (registered `exported="false"` in the manifest — the system still
+  fires it when *this app's own* `PendingIntent` is triggered by a swipe/auto-cancel, so this doesn't
+  need to be exported), which calls `AlertPlayer.onNotificationDismissed(context, notificationId)` to
+  remove that id and re-run `updateGroupSummary()`. Verified on an emulator: posting two alerts,
+  swiping one from the shade live-updates the summary from "확인 안 된 위반 2건" to "1건", and
+  swiping the last one cancels the summary notification entirely (confirmed via
+  `dumpsys notification`). Unlike `stop()`, this never touches the alarm sound/TTS/vibration —
+  dismissing a notification is not the same as acknowledging the alert, it only corrects the tray's
+  displayed count.
 
   While an alert is active, `MainActivity.startAlertImpactLoop()` re-triggers
   `playAlertImpact()` on the `alertDetailCard` every 4s (`ALERT_IMPACT_INTERVAL_MS`) via a

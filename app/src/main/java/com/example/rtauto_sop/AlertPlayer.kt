@@ -46,10 +46,11 @@ object AlertPlayer {
     // 알림 개수만큼 쌓이게 해달라는 요청(2026-09-16, 실사용 중 발견)에 대응.
     private const val ALERT_GROUP_KEY = "com.example.rtauto_sop.ALERT_GROUP"
     private const val SUMMARY_NOTIFICATION_ID = 999_999_999   // 개별 경보 id(currentTimeMillis 기반)와 안 겹치는 고정값
-    // 아직 취소 안 된 알림 id들 — 요약 문구의 "N건" 근거. 한계: 관리자가 개별 알림을 안드로이드
-    // 알림창에서 직접 스와이프로 지우거나 탭해서 지우면(setAutoCancel(true)) 이 목록은 그
-    // 사실을 모른 채 계속 들고 있어서, 요약 건수가 실제(트레이에 남은 것)보다 많게 어긋날 수
-    // 있다 — 삭제/탭 콜백까지 잡으려면 BroadcastReceiver가 필요해 지금은 범위 밖으로 둠.
+    // 아직 취소 안 된 알림 id들 — 요약 문구의 "N건" 근거. showNotification()이 붙이는
+    // deleteIntent(NotificationDismissReceiver)가 관리자가 트레이에서 알림을 직접 스와이프로
+    // 지우거나 탭해서 자동 취소될 때도 [onNotificationDismissed]를 통해 이 목록에서 제거해준다 —
+    // AlertPlayer.stop()(확인 버튼 / 엣지 PC 해제)만 믿으면 트레이 직접 조작이 반영 안 돼
+    // 요약 건수가 실제보다 많게 어긋났었다(2026-09-16 발견, 이제 수정됨).
     private val activeNotificationIds = mutableListOf<Int>()
 
     // TTS가 말하는 동안 경고음을 이 크기까지 낮춘다(덕킹) — 완전히 죽이지는 않아서
@@ -179,6 +180,16 @@ object AlertPlayer {
             context, notificationId, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        // 관리자가 이 알림을 트레이에서 직접 스와이프로 지우거나(또는 탭해서 setAutoCancel(true)로
+        // 자동 취소되거나) 하면 NotificationDismissReceiver가 이 알림의 id를 받아
+        // activeNotificationIds에서 지우고 요약 건수를 다시 계산한다 — requestCode도 notificationId로
+        // 줘서 contentIntent와 마찬가지로 알림마다 독립된 PendingIntent가 되게 한다.
+        val deleteIntent = PendingIntent.getBroadcast(
+            context, notificationId,
+            Intent(context, NotificationDismissReceiver::class.java)
+                .putExtra(NotificationDismissReceiver.EXTRA_NOTIFICATION_ID, notificationId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         val notification = NotificationCompat.Builder(context, context.getString(R.string.alert_channel_id))
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle(title)
@@ -187,6 +198,7 @@ object AlertPlayer {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
+            .setDeleteIntent(deleteIntent)
             // 같은 그룹으로 묶어서, 위반이 여러 건 쌓이면 안드로이드가 "N건"으로 정리해
             // 보여주게 한다 — 최신 것만 남고 이전 것들이 안 보이는 문제(2026-09-16 발견) 대응.
             .setGroup(ALERT_GROUP_KEY)
@@ -221,6 +233,19 @@ object AlertPlayer {
             .setAutoCancel(false)
             .build()
         NotificationManagerCompat.from(context).notify(SUMMARY_NOTIFICATION_ID, summary)
+    }
+
+    /**
+     * [NotificationDismissReceiver]가 호출한다 — 관리자가 개별 알림을 트레이에서 직접 지웠을 때
+     * (스와이프, 또는 탭에 의한 자동 취소) [activeNotificationIds]/요약 건수를 실제 상태에 맞게
+     * 바로잡는다. [stop]과 달리 재생 중인 소리·진동·TTS는 건드리지 않는다 — 알림을 지웠다고
+     * 알람까지 자동으로 꺼지면 안 되고(그건 "확인" 버튼의 역할), 이건 순전히 알림 개수 표시만
+     * 맞추는 용도다.
+     */
+    fun onNotificationDismissed(context: Context, notificationId: Int) {
+        if (activeNotificationIds.remove(notificationId)) {
+            updateGroupSummary(context)
+        }
     }
 
     private fun vibrate(context: Context) {
