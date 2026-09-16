@@ -76,10 +76,17 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_SELECTED_NAV_ID = "selected_nav_id"
         private const val KEY_SELECTED_DATE = "selected_date_millis"
         private const val ALERT_IMPACT_INTERVAL_MS = 4_000L
+
+        /** AlertPlayer가 알림의 PendingIntent에 실어 보내는 extra — 이게 true면 홈 대신
+         *  경보상세 탭으로 바로 연다(알림을 탭해서 들어온 거니까). */
+        const val EXTRA_OPEN_ALERT_DETAIL = "open_alert_detail"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 저장된 다크모드 값을 화면이 그려지기 전에 먼저 적용한다.
+        // 저장된 다크모드 값을 화면이 그려지기 전에 먼저 적용한다. "완전히 새로 켜질 때는
+        // 항상 라이트로 시작" 리셋은 여기가 아니라 App.onCreate()(프로세스 시작 시 1회)에서
+        // 처리한다 — savedInstanceState만으로는 프로세스가 죽었다가 최근 앱 목록에서
+        // 복귀하는 경우를 못 걸러낸다(2026-09-16 실기기 테스트에서 확인, App.kt 참고).
         AppCompatDelegate.setDefaultNightMode(
             if (ThemePrefs.isDarkMode(this)) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
         )
@@ -130,23 +137,42 @@ class MainActivity : AppCompatActivity() {
         setupSettingsScreen()
         setupEventCalendar()
         setupBottomNav()
-        // 프로그램적으로 selectedItemId를 바꿀 때와 달리, 최초 진입 시엔 리스너가 안 불려서
-        // 기본 탭(홈)의 액션바 제목을 따로 한 번 맞춰준다.
-        if (savedInstanceState == null) {
-            setTabTitle("홈")
+
+        val openAlertDetail = intent?.getBooleanExtra(EXTRA_OPEN_ALERT_DETAIL, false) == true
+        when {
+            openAlertDetail -> {
+                // 알림을 탭해서 들어온 경우 — 홈이 아니라 경보상세로 바로 이동. 급한 경보를
+                // 보러 온 건데 2.3초짜리 인트로 스플래시로 지연시키지 않는다.
+                findViewById<View>(R.id.introOverlay).visibility = View.GONE
+                findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_alert_detail
+            }
+            savedInstanceState == null -> {
+                // 프로그램적으로 selectedItemId를 바꿀 때와 달리, 최초 진입 시엔 리스너가 안
+                // 불려서 기본 탭(홈)의 액션바 제목을 따로 한 번 맞춰준다.
+                setTabTitle("홈")
+                runIntroAnimation()
+            }
+            else -> {
+                findViewById<View>(R.id.introOverlay).visibility = View.GONE
+                // 다크모드 전환 등으로 recreate될 때 보고 있던 탭 그대로 복원한다.
+                // (홈/경보상세/이벤트목록 컨테이너의 visibility는 기본 View 상태 저장에
+                // 포함되지 않아, 복원해주지 않으면 매번 홈 화면으로 되돌아간다.)
+                val savedNavId = savedInstanceState.getInt(KEY_SELECTED_NAV_ID, R.id.nav_home)
+                findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = savedNavId
+            }
         }
-        // savedInstanceState가 null일 때만 인트로를 재생한다 — 다크모드 전환 등으로
-        // 액티비티가 recreate될 때는 non-null이라, 설정을 바꿀 때마다 매번 스플래시가
-        // 다시 뜨는 걸 막는다. 진짜 첫 실행에서만 보이면 된다.
-        if (savedInstanceState == null) {
-            runIntroAnimation()
-        } else {
-            findViewById<View>(R.id.introOverlay).visibility = View.GONE
-            // 다크모드 전환 등으로 recreate될 때 보고 있던 탭 그대로 복원한다.
-            // (홈/경보상세/이벤트목록 컨테이너의 visibility는 기본 View 상태 저장에
-            // 포함되지 않아, 복원해주지 않으면 매번 홈 화면으로 되돌아간다.)
-            val savedNavId = savedInstanceState.getInt(KEY_SELECTED_NAV_ID, R.id.nav_home)
-            findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = savedNavId
+    }
+
+    /**
+     * launchMode="singleTask"라 앱이 이미 떠 있는 상태에서 알림을 또 탭하면 onCreate()가
+     * 아니라 여기로 들어온다. getIntent()가 여전히 예전 인텐트를 가리키지 않도록
+     * setIntent()로 갱신한 뒤, 이번에도 알림을 탭해서 들어온 거면 경보상세로 전환한다.
+     */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_ALERT_DETAIL, false)) {
+            findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_alert_detail
         }
     }
 

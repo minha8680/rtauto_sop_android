@@ -247,7 +247,20 @@ there's no observer/LiveData wiring from `AlertFcmService` into the UI.
 
 **Dark mode** is a manual toggle (sun/moon icon in the action bar, top-right — not a system-follows
 toggle), backed by `ThemePrefs` and applied via `AppCompatDelegate.setDefaultNightMode()`, which
-recreates the Activity. Two things exist specifically to make that recreate not lose state:
+recreates the Activity. **It does not persist across a full app restart, by design (2026-09-16)** —
+every admin who opens the app starts from light, and dark is an opt-in for that session only. The
+reset lives in **`App.onCreate()`** (`App.kt`, registered as `android:name=".App"` in the manifest),
+not in `MainActivity.onCreate()` — `MainActivity` just unconditionally applies whatever
+`ThemePrefs.isDarkMode()` currently says. This split matters: an earlier version gated the reset on
+`MainActivity`'s `savedInstanceState == null`, which looked right but wasn't — Android restores a
+killed process's Activity from its saved instance-state Bundle (so the app "reopening after being
+swiped away or reclaimed in the background" is extremely common) and passes that Bundle into
+`onCreate()` as **non-null**, indistinguishable from an in-session recreate (theme toggle, rotation)
+by that check alone. `Application.onCreate()` doesn't have this problem — it only runs once per
+actual process start, which is the one signal that means "truly fresh," so the reset (`ThemePrefs`
+back to light + `MODE_NIGHT_NO`) belongs there. Don't move it back into `MainActivity` behind a
+`savedInstanceState` check. Two things exist specifically to make the in-session recreate not lose
+state:
 - `android:forceDarkAllowed="false"` is set on both the light and dark theme in `themes.xml` /
   `values-night/themes.xml`. Without it, some OEM skins (confirmed on Samsung OneUI's "다른 앱에도
   다크 모드 적용") auto-darken the light theme's window background on top of our own theming, when the
