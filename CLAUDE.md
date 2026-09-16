@@ -391,14 +391,17 @@ real duration is too short to reliably catch with manual screenshots.
 ## Known gaps vs. the proposal (5.6 절)
 
 Not implemented yet, in case a task asks to extend toward the full design: the proposal's 30-second
-re-send is only partially covered — `AlertPlayer` now repeats the **TTS voice** every 10 seconds until
-acknowledged (see Architecture above), but the notification, alarm sound, and vibration all still fire
-just once, not on the same repeating schedule. Also missing: full-screen forced alarm over the lock
-screen, the safety-zone marker/anchor-point logic (5.7 절, entirely edge-PC-side, not part of this
-app), and the edge PC's own FastAPI send service (only the throwaway `tools/send_test_alert.py`
+re-send is only partially covered — `AlertPlayer` repeats the **TTS voice** every 10 seconds, and
+(separately, via `MainActivity.startAlertImpactLoop()`) the phone **vibrates** every 4 seconds, both
+until acknowledged (see Architecture above) — but the notification and the alarm **sound** still fire
+just once each, not on the same repeating schedule. Also missing: full-screen forced alarm over the
+lock screen, the safety-zone marker/anchor-point logic (5.7 절, entirely edge-PC-side, not part of
+this app), and the edge PC's own FastAPI send service (only the throwaway `tools/send_test_alert.py`
 stand-in exists so far, plus `webcam_sop.py --fcm-token` in the edge-PC repo for the real detection
 loop).
 
 **Resolved (2026-09-15)**: auto-clear when the edge PC reports normal state restored — see "Resolve
-path" under Architecture. `kind="resolved"` FCM messages (not yet exercised against a real running
-`webcam_sop.py`, only compiled and reasoned through — verify end-to-end before relying on it).
+path" under Architecture. `kind="resolved"` FCM messages have since been exercised against real
+detection traffic (the 2026-09-16 fixes above — `promoteNextIfAny`, severity sorting, notification
+grouping — were all found this way, with two genuinely simultaneous violations), not just reasoned
+through in isolation.

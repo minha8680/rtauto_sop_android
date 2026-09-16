@@ -103,6 +103,22 @@ grid programmatically (weekday header + week rows of day cells), same "build vie
 - Sunday header label is tinted `critical_fg`, Saturday `normal_fg` (common Korean calendar
   convention) — cosmetic only, doesn't affect selection logic.
 
+## Newer additions since the mockup (2026-09-16, not on the original artboards)
+
+Two elements were added to 경보상세 after real-world testing surfaced gaps the mockup didn't cover
+(see `CLAUDE.md`'s "multiple simultaneously-active violations" / "Notification tray stacking" notes)
+— both were deliberately built from tokens/patterns already established above rather than inventing
+new visual language:
+
+- **`autoResolvedSummary`** (empty-state "오늘 자동 해제된 위반 N건" pill) reuses `bg_pill_success` /
+  `status_ok`, the exact same green success-pill treatment as the 홈 tab's "발급됨" badge — an
+  auto-resolve count is good news ("this got handled without you"), so it borrows that badge's
+  already-established "success" visual meaning instead of introducing a new pill color.
+- **`otherAlertsToggle`/`otherAlertsContainer`** ("다른 활성 위반 N건" expandable list below the main
+  card) uses `ic_chevron_right` (already in the icon set) and renders each row with the same
+  `buildEventRow()` used in 오늘 이벤트, so a second active violation looks exactly like it would in
+  the event list — no new row style was designed for it.
+
 ## If you extend this further
 
 Two things the mockup queued up but weren't ported (see `CLAUDE.md`'s UI shape section for current
