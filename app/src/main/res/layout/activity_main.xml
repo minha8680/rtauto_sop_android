@@ -227,6 +227,7 @@
                         android:padding="20dp">
 
                         <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/alertDetailCard"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             app:cardBackgroundColor="@color/surface"

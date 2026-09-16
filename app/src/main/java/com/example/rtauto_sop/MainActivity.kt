@@ -1,6 +1,8 @@
 package com.example.rtauto_sop
 
 import android.Manifest
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -10,6 +12,12 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.CombinedVibration
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.view.Gravity
 import android.view.Menu
@@ -67,6 +75,7 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val KEY_SELECTED_NAV_ID = "selected_nav_id"
         private const val KEY_SELECTED_DATE = "selected_date_millis"
+        private const val ALERT_IMPACT_INTERVAL_MS = 4_000L
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -227,6 +236,31 @@ class MainActivity : AppCompatActivity() {
         refreshEventList()
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 화면이 실제로 보이는 동안에만 새 경보 콜백을 받는다 — 앱이 백그라운드일 때
+        // 도착한 경보는 여기서 처리하지 않고, 다음 onResume()의 refreshAlertDetail()이
+        // 최신 상태를 보여주는 것으로 충분하다(자동 탭 전환·애니메이션은 필요 없음).
+        AlertPlayer.setUiListener { onNewAlertArrived() }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        AlertPlayer.setUiListener(null)
+        // 화면이 안 보이는 동안 배경에서 계속 흔들림/진동 연출이 도는 걸 막는다 — 활성 경보가
+        // 여전히 있으면 다음 onResume()의 refreshAlertDetail()이 다시 켠다.
+        stopAlertImpactLoop()
+    }
+
+    /**
+     * 화면을 보고 있는 도중(예: 홈 화면) 새 경보가 울리기 시작하면 호출된다.
+     * 경보상세 탭으로 자동 전환한다 — 기존 BottomNavigationView 리스너가 새로고침까지
+     * 처리하고, 그 안의 refreshAlertDetail()이 카드 테두리의 "무한궤도" 표시도 켠다.
+     */
+    private fun onNewAlertArrived() {
+        findViewById<BottomNavigationView>(R.id.bottomNav).selectedItemId = R.id.nav_alert_detail
+    }
+
     // ---------------------------------------------------------------------
     // 하단 네비게이션 (홈 / 경보상세 / 오늘 이벤트) — 기획안 5.5절 화면 3종
     // ---------------------------------------------------------------------
@@ -301,8 +335,12 @@ class MainActivity : AppCompatActivity() {
             emptyText.visibility = View.VISIBLE
             ackButton.isEnabled = false
             ackButton.alpha = 0.5f
+            stopAlertImpactLoop()
             return
         }
+        // 활성 경보가 있는 동안 카드 흔들림+진동 연출을 반복한다 — 이미 돌고 있으면
+        // start가 아무것도 안 하므로, 탭을 오갈 때마다 호출돼도 매번 처음부터 다시 튀지 않는다.
+        startAlertImpactLoop()
 
         levelBar.visibility = View.VISIBLE
         levelBar.text = "${event.level} 편차 발생"
@@ -328,6 +366,84 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "경보를 종료했습니다", Toast.LENGTH_SHORT).show()
             refreshAlertDetail()
             refreshEventList()
+        }
+    }
+
+    // 활성 경보가 있는 동안, "확인"을 누르기 전까지 경보상세 카드를 흔들림+진동으로
+    // 반복 강조. 반복 간격은 4초 —
+    // 사용자가 요청한 3~5초 범위 안에서 고른 값.
+    private var alertImpactHandler: Handler? = null
+    private var alertImpactRunnable: Runnable? = null
+
+    /** 이미 돌고 있으면 아무것도 하지 않는다 — refreshAlertDetail()이 탭을 오갈 때마다
+     *  호출해도 매번 처음부터 다시 튀지 않고, 원래 예약된 다음 tick까지 그대로 이어간다. */
+    private fun startAlertImpactLoop() {
+        if (alertImpactHandler != null) return
+        val handler = Handler(Looper.getMainLooper())
+        val runnable = object : Runnable {
+            override fun run() {
+                playAlertImpact()
+                handler.postDelayed(this, ALERT_IMPACT_INTERVAL_MS)
+            }
+        }
+        alertImpactHandler = handler
+        alertImpactRunnable = runnable
+        // 첫 tick은 지금 즉시 — 새 경보가 뜨자마자, 혹은 아직 안 끝난 경보 화면으로
+        // 돌아오자마자 한 번 강하게 흔들리게 한다.
+        handler.post(runnable)
+    }
+
+    private fun stopAlertImpactLoop() {
+        alertImpactRunnable?.let { alertImpactHandler?.removeCallbacks(it) }
+        alertImpactHandler = null
+        alertImpactRunnable = null
+    }
+
+    /** 경보상세 카드를 좌우로 튕겼다가 잦아드는 흔들림 + 살짝 부풀었다 돌아오는 스케일
+     *  펄스로 흔들고, 함께 강하고 입체적인(웅-웅-웅) 진동을 울린다. 진동은 설정 탭의
+     *  "진동" 스위치를 그대로 따른다 — [AlertPlayer.trigger]의 최초 1회 진동과 같은 규칙. */
+    private fun playAlertImpact() {
+        val cardView = findViewById<View>(R.id.alertDetailCard)
+
+        if (AppSettings.isVibrationEnabled(this)) {
+            vibrateImpact()
+        }
+
+        val density = resources.displayMetrics.density
+        val shakeAmplitudePx = density * 10f
+        val shakeX = ObjectAnimator.ofFloat(cardView, View.TRANSLATION_X, 0f, shakeAmplitudePx).apply {
+            duration = 600
+            interpolator = DangerShakeInterpolator()
+        }
+        val scaleX = ObjectAnimator.ofFloat(cardView, View.SCALE_X, 1f, 1.04f, 0.985f, 1f).apply {
+            duration = 600
+        }
+        val scaleY = ObjectAnimator.ofFloat(cardView, View.SCALE_Y, 1f, 1.04f, 0.985f, 1f).apply {
+            duration = 600
+        }
+        AnimatorSet().apply {
+            playTogether(shakeX, scaleX, scaleY)
+            start()
+        }
+    }
+
+    /** [AlertPlayer]의 최초 1회 진동(400/200/400 단순 패턴)보다 굴곡을 준 웨이브폼 —
+     *  "웅-웅-웅" 하고 세 번 강하게 끊어 치는 느낌을 낸다. */
+    private fun vibrateImpact() {
+        val timings = longArrayOf(0, 150, 80, 150, 80, 140)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val amplitudes = intArrayOf(0, 255, 0, 230, 0, 200)
+            val manager = getSystemService(VibratorManager::class.java)
+            manager.vibrate(CombinedVibration.createParallel(VibrationEffect.createWaveform(timings, amplitudes, -1)))
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val amplitudes = intArrayOf(0, 255, 0, 230, 0, 200)
+            @Suppress("DEPRECATION")
+            (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(
+                VibrationEffect.createWaveform(timings, amplitudes, -1)
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            (getSystemService(Context.VIBRATOR_SERVICE) as Vibrator).vibrate(timings, -1)
         }
     }
 
