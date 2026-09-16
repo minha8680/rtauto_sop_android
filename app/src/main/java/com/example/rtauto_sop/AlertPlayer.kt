@@ -58,6 +58,15 @@ object AlertPlayer {
     private var repeatHandler: Handler? = null
     private var repeatRunnable: Runnable? = null
 
+    // MainActivity가 화면에 보이는 동안(onStart~onStop)에만 등록되는 콜백 — 새 경보가
+    // 울리기 시작했다는 걸 UI에 알려서 경보상세 탭으로 자동 전환 + 강조 애니메이션을
+    // 재생하게 한다. 앱이 백그라운드/종료 상태면 null이라 그냥 무시된다.
+    private var uiListener: (() -> Unit)? = null
+
+    fun setUiListener(listener: (() -> Unit)?) {
+        uiListener = listener
+    }
+
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -101,6 +110,10 @@ object AlertPlayer {
         }
         // "확인"을 누르기 전까지 10초 간격으로 TTS만 계속 반복한다.
         scheduleTtsRepeat(context.applicationContext, body)
+
+        // FCM 수신은 백그라운드 스레드에서 이 함수를 호출할 수 있고, 테스트 버튼은 메인
+        // 스레드에서 호출한다 — 어느 쪽이든 UI 콜백은 항상 메인 스레드에서 실행되게 post한다.
+        Handler(Looper.getMainLooper()).post { uiListener?.invoke() }
     }
 
     /** 10초마다 [speak]를 다시 호출해, "확인"을 누르기 전까지 음성 안내를 반복한다. */

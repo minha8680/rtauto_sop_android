@@ -205,7 +205,17 @@ as the source of truth for how each screen's logic is wired:
   brand red regardless of the alert's severity (see DESIGN.md for why). The alarm can also stop on
   its own without this button — see "Resolve path" above — in which case this banner disappears the
   next time `refreshAlertDetail()` runs (`latestUnacknowledged()` no longer returns it) with no extra
-  code needed here.
+  code needed here. While an alert is active, `MainActivity.startAlertImpactLoop()` re-triggers
+  `playAlertImpact()` on the `alertDetailCard` every 4s (`ALERT_IMPACT_INTERVAL_MS`) via a
+  `Handler(Looper.getMainLooper())` — a damped shake (`DangerShakeInterpolator`) + scale pulse on the
+  card, plus a punchier waveform vibration (gated on `AppSettings.isVibrationEnabled`, same rule as
+  `AlertPlayer.trigger()`'s initial vibration) — replacing an earlier calm gray "무한궤도" border
+  animation (`AlertBorderPulseView`, removed) that was deliberately toned-down; this one is
+  intentionally the opposite, by request, so it can't be casually ignored before acknowledging. Like
+  the TTS repeat in `AlertPlayer`, the loop is idempotent (`startAlertImpactLoop()` no-ops if already
+  running) so switching tabs doesn't restart it, and it's only stopped in `onStop()`/when there's no
+  active event — it deliberately keeps running (including the vibration) even while a different
+  bottom-nav tab is showing, so it can't be dismissed just by looking away.
 - **오늘 이벤트** (`nav_event_list`) — the calendar is a **custom-built month grid**, not the stock
   `CalendarView` (removed entirely). `MainActivity.renderCalendarGrid()` builds weekday header + week
   rows programmatically (same "build views in code, no RecyclerView" style `buildEventRow()` already
